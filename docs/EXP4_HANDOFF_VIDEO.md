@@ -81,6 +81,18 @@ ONNX INT8 单帧推理 **约 130–160ms**——图像线端到端远低于任�
 视频 Worker 用实验 2 原始 best.pt——因为 track 模式依赖 ultralytics 内置 ByteTrack，
 ONNX 无跟踪器。两模型同源（A2 权重量化前后），精度差 ≤0.001 mAP50，报告中如实说明即可。
 
+### 2.1 v1.1 补充（2026-11-01 晚）：文本分类模型文件
+
+包内新增 **`backend/app/ml/text_action_clf.joblib`（3.4MB）+ `text_clf_meta.json`**，
+解压到你的后端根目录即落位 `app/ml/`（正好是 `TextClassifier` 的默认读取路径）。
+
+- 缺这两个文件时的行为（本侧代码已按此实现）：服务**可正常启动**，视频任务线与
+  `/api/v1/detect` 不受影响；`/api/v1/text/classify` 与 `/api/v1/match` 返回 500
+  （msg："文本分类模型未加载"）；`/api/v1/health` 显示 `text_clf_loaded:false`；
+- **meta.json 必须与 joblib 同目录**：域判定（"是否篮球赛事文本"）的关键词规则与
+  阈值 0.5 存在 meta 里，缺失会退化为纯概率阈值，短文本（"换人了"）会误判；
+- 若需自行复训：`python train_text_clf.py`（语料来自实验 1 清洗后解说，40 秒）。
+
 ---
 
 ## 3. 可复用代码件（`code_reuse/`，已冒烟验证，可直接拷进你的工程）

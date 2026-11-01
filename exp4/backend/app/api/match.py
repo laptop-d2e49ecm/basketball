@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 
+from ..core.errors import ModelError
 from ..core.schemas import ok
 from ..services.workflow import run_match
 from preprocess import check_image_bytes, check_text
@@ -17,8 +18,10 @@ def match_image_text(
     text: str = Form(..., description="待匹配的解说文本"),
     conf: float = Form(0.25, ge=0.05, le=0.9),
 ):
+    clf = getattr(request.app.state, "text_clf", None)
+    if clf is None:
+        raise ModelError("文本分类模型未加载（app/ml/text_action_clf.joblib 缺失）")
     data = check_image_bytes(file.filename or "", file.file.read())
     text = check_text(text)
-    result = run_match(request.app.state.detector, request.app.state.text_clf,
-                       data, text, conf=conf)
+    result = run_match(request.app.state.detector, clf, data, text, conf=conf)
     return ok(result)

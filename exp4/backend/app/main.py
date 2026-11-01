@@ -20,7 +20,14 @@ from app.services.text_clf import TextClassifier
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.detector = Detector(DETECTOR_MODEL)        # 实验3 INT8 模型，启动加载一次
-    app.state.text_clf = TextClassifier(TEXT_MODEL)      # 实验1 语料训练的文本分类器
+    try:
+        app.state.text_clf = TextClassifier(TEXT_MODEL)  # 实验1 语料训练的文本分类器
+    except Exception:  # noqa: BLE001 —— 缺模型不阻断视频主线服务启动，health 如实上报
+        import logging
+        logging.getLogger("uvicorn.error").warning(
+            "文本分类模型未加载：app/ml/text_action_clf.joblib 缺失，"
+            "/text/classify 与 /match 将返回 500（视频任务线不受影响）")
+        app.state.text_clf = None
     yield
     app.state.detector = None
     app.state.text_clf = None

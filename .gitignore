@@ -59,3 +59,11 @@ exp4/backend/tasks.db
 exp4/backend/runs/
 exp4/backend/static/
 
+# 交接包在仓库根目录的解压产物（zip 内容手动解压查看，不入库；包本体见 share_exp4_handoff/）
+实验4_给队友交接包/
+/code_reuse/
+/samples/
+/EXP4_PLAN.md
+/交接说明_必读.md
+/数据集下载链接.txt
+
