@@ -1,0 +1,3 @@
+图像：https://huggingface.co/datasets/MCG-NJU/SportsMOT （CC BY-NC 4.0）
+视频与动作标注：https://huggingface.co/datasets/MCG-NJU/MultiSports（门控仓库，登录同意条款后可下载；仅含标注的trainval拆分15.55GB）
+文本：直播吧（zhibo8.com）文字直播自爬语料（robots.txt合规、限速），原始语料不再分发，清洗后格式与字段见docs/DATA_CARD.md

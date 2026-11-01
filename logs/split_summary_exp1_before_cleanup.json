@@ -1,0 +1,143 @@
+{
+  "vision": {
+    "n_sequences": 30,
+    "sequences_train": 24,
+    "sequences_val": 3,
+    "sequences_test": 3,
+    "images": {
+      "train": 4316,
+      "val": 346,
+      "test": 380
+    },
+    "imgsz": 640,
+    "split_unit": "sequence"
+  },
+  "structured": {
+    "games_augmented.csv": {
+      "train": 21321,
+      "val": 2665,
+      "test": 2665,
+      "columns": [
+        "game_date_est",
+        "game_id",
+        "game_status_text",
+        "home_team_id",
+        "visitor_team_id",
+        "season",
+        "team_id_home",
+        "pts_home",
+        "fg_pct_home",
+        "ft_pct_home",
+        "fg3_pct_home",
+        "ast_home",
+        "reb_home",
+        "team_id_away",
+        "pts_away",
+        "fg_pct_away",
+        "ft_pct_away",
+        "fg3_pct_away",
+        "ast_away",
+        "reb_away",
+        "home_team_wins"
+      ]
+    },
+    "games_details_augmented.csv": {
+      "train": 527747,
+      "val": 65968,
+      "test": 65969,
+      "columns": [
+        "game_id",
+        "team_id",
+        "team_abbreviation",
+        "team_city",
+        "player_id",
+        "player_name",
+        "nickname",
+        "start_position",
+        "comment",
+        "min",
+        "fgm",
+        "fga",
+        "fg_pct",
+        "fg3_m",
+        "fg3_a",
+        "fg3_pct",
+        "ftm",
+        "fta",
+        "ft_pct",
+        "oreb",
+        "dreb",
+        "reb",
+        "ast",
+        "stl",
+        "blk",
+        "to",
+        "pf",
+        "pts",
+        "plus_minus",
+        "three_point_pct",
+        "free_throw_pct",
+        "rebounds_total"
+      ]
+    },
+    "players_augmented.csv": {
+      "train": 5782,
+      "val": 723,
+      "test": 722,
+      "columns": [
+        "player_name",
+        "team_id",
+        "player_id",
+        "season"
+      ]
+    },
+    "ranking_augmented.csv": {
+      "train": 168274,
+      "val": 21034,
+      "test": 21034,
+      "columns": [
+        "team_id",
+        "league_id",
+        "season_id",
+        "standingsdate",
+        "conference",
+        "team",
+        "g",
+        "w",
+        "l",
+        "w_pct",
+        "home_record",
+        "road_record",
+        "returntoplay"
+      ]
+    },
+    "teams_augmented.csv": {
+      "train": 24,
+      "val": 3,
+      "test": 3,
+      "columns": [
+        "league_id",
+        "team_id",
+        "min_year",
+        "max_year",
+        "abbreviation",
+        "nickname",
+        "yearfounded",
+        "city",
+        "arena",
+        "arenacapacity",
+        "owner",
+        "generalmanager",
+        "headcoach",
+        "dleagueaffiliation"
+      ]
+    }
+  },
+  "texts": {
+    "train": 98,
+    "val": 12,
+    "test": 12
+  },
+  "seed": 42,
+  "ratio": "8:1:1"
+}

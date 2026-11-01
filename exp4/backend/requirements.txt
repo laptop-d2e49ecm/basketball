@@ -1,0 +1,19 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+onnxruntime>=1.18
+numpy>=1.26
+pillow>=10.0
+scikit-learn>=1.5
+joblib>=1.4
+python-multipart>=0.0.9
+
+# ---- 视频 Worker（track 模式与解码；仅做图像/文本 API 时不装也能跑）----
+ultralytics>=8.3
+opencv-python>=4.9
+
+# ---- 异步任务可选模式（默认 worker 进程模式零依赖；TASK_BACKEND=celery 时需要）----
+celery>=5.4
+redis>=5.0
+
+# ---- 开发/测试 ----
+pytest>=8.0

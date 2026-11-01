@@ -1,0 +1,28 @@
+# 实验 1 基础依赖（任务书"实验环境"一节）
+pandas
+numpy
+requests
+beautifulsoup4
+scikit-learn
+opencv-python
+Pillow
+nltk
+imagehash          # 感知哈希去重复帧
+kagglehub          # 免账号下载 Kaggle 数据集（阶段 1 结构化数据）
+matplotlib         # 清洗前后对比图表绘制（scripts/05_evaluate/plot_clean_charts.py）
+
+# PyTorch（增强 + Dataset 封装；CPU 版即可）
+torch
+torchvision
+
+# HuggingFace Datasets（任务 1.1.1/1.1.2 加载远程数据集用）
+datasets
+
+# 实验 2：YOLO 球员检测训练（2026-10-13 新增，scripts/03_train/train_yolo.py）
+ultralytics
+
+# 自动化数据策展流水线（任务 1.2.1 第 5 条，体积较大、可选装）
+# pip install py-data-juicer
+# 注意：1.6.0 的 clean_html_mapper 依赖 selectolax<1.0（1.0 移除了 modest 后端会致流水线清空数据）
+selectolax<1.0
+

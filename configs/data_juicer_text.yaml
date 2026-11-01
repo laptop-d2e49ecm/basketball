@@ -1,0 +1,66 @@
+# 任务 1.2.1 第 5 条：Data-Juicer 自动化数据策展流水线（共 6 个算子，满足"至少 5 个"）
+#
+# 注意：py-data-juicer 1.6.0 起入口命令为 dj-process（原 dj-ce 已移除）；
+# process 段为列表，但每项必须是"算子名: 参数"的单键字典（裸算子名字符串会解析失败）。
+# 依赖 selectolax<1.0（1.0 移除 modest 后端，clean_html_mapper 会静默清空数据集）。
+#
+# 本机运行方式（torch DLL 兼容修复，见 scripts/02_clean/run_dj.py 说明）：
+#   python scripts/02_clean/run_dj.py --config configs/data_juicer_text.yaml
+# 其他机器（无 DLL 问题）：
+#   dj-process --config configs/data_juicer_text.yaml
+#
+# 实测（2026-10-04，122 篇输入）：总耗时 134s（含 fasttext 语言模型加载 ~20s 与多进程启动），
+# 输出 120 篇（MinHash 去重移除 2 篇近似重复）；
+# 手工清洗 clean_texts.py 同规模耗时 0.29s（仅做规范化，不含语言识别与去重）。
+# 对比结论写入报告第 6 条：小语料上手工清洗快两个数量级；DJ 优势在可扩展、可复现、算子可组合。
+
+# 全局配置
+# 1.6.0 起用结构化 dataset 配置（旧的 dataset_path 标量会被误判为 HuggingFace 数据集）
+dataset:
+  configs:
+    - type: local
+      path: data/raw/texts/all_pages.jsonl   # 爬虫产出的原始 jsonl（含 text 字段）
+# 1.6.0 Windows bug：日志文件名由 relpath(export_path, work_dir) 拼出，
+# export 在 work_dir 外会得到含 " ..\" 的非法路径。把两者都放进 {job_id} 占位目录即可。
+work_dir: D:/Projects/python/basketball/data/processed/texts/dj_workspace/{job_id}
+export_path: D:/Projects/python/basketball/data/processed/texts/dj_workspace/{job_id}/dj_output.jsonl
+export_original_dataset: false
+np: 4                                            # 进程数
+executor_type: default                           # 单机默认执行器，避免 1.6.0 默认 ray 执行器额外安装 ray
+
+# ---- 算子流水线（列表，每项必须是"算子名: 参数"的单键字典；空值 = 默认参数）----
+process:
+  # 算子1：HTML 标签清理（映射类）
+  - clean_html_mapper:
+
+  # 算子2：空白规范化（映射类）
+  - whitespace_normalization_mapper:
+
+  # 算子3：语言识别过滤——保留中文/英文文档（过滤类）
+  - language_id_score_filter:
+      lang: zh
+      min_score: 0.5
+
+  # 算子4：文本长度过滤——剔除过短/过长文档（过滤类）
+  - text_length_filter:
+      min_len: 50
+      max_len: 10000
+
+  # 算子5：邮箱等隐私标识清理（映射类，隐私合规）
+  - clean_email_mapper:
+
+  # 算子6：MinHash 文档去重（去重类；中文按字符切分，128 个置换）
+  - document_minhash_deduplicator:
+      tokenization: character
+      num_permutations: 128
+      lowercase: true
+      jaccard_threshold: 0.7
+
+# ---- 可选扩展（图像/视频算子，需安装多模态依赖，写入报告加分）----
+#   - image_blur_filter:            # 模糊图像过滤
+#       min_score: 100
+#   - image_shape_filter:           # 分辨率过滤
+#       min_width: 640
+#       min_height: 360
+#   - video_duration_tagger         # 视频时长统计
+#   - video_motion_score_filter     # 静态镜头过滤（运动数据尤其有用）

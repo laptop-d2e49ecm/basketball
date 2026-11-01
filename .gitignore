@@ -1,0 +1,41 @@
+# 原始数据与生成产物不入库（报告截图时本地查看即可）
+data/raw/*
+data/processed/*
+data/splits/*
+!data/raw/*/.gitkeep
+!data/processed/*/.gitkeep
+!data/processed/*/*/.gitkeep
+!data/splits/.gitkeep
+
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.idea/
+.vscode/
+*.log
+
+# 本机 torch DLL 兼容修复用的运行库副本（二进制不分发，见 docs/PROVENANCE.md 问题 9）
+vendor/*.dll
+
+# Python 虚拟环境（通过 requirements.txt 重建）
+.venv/
+venv/
+
+# 模型权重与训练产物（大文件，走压缩包/网盘分发，不入库）
+models/
+runs/
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.partial
+
+# 交接/分享压缩包及解压目录
+*.zip
+*.tar
+*.tar.gz
+*.7z
+share_*/
+
+# 报告构建产物
+.report_build/
