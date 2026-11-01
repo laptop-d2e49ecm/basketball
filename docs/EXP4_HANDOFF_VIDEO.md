@@ -101,7 +101,7 @@ ONNX 无跟踪器。两模型同源（A2 权重量化前后），精度差 ≤0.
 
 ## 4. 联调素材（`samples/`）
 
-- `demo_video.mp4`：MultiSports 篮球段（2.4MB，720p）——跑你 Worker 全流程与基线实测用；
+- `demo_video.mp4`：MultiSports 篮球段（**36 秒 / 33.2MB / 720p@25fps / 900 帧**）——跑你 Worker 全流程与基线实测用（基线口径：frame_step=1 时约 900 帧推理，正好覆盖任务书"耗时实测"）；还需要更长片段可从仓库 `data/raw/multisports/extract/basketball/` 选（最长 147 秒/174MB）；
 - `images/`：实验 1 **test 划分**抽样 8 张（含标注框最多的 3 张，GT 框数写在文件名后的 txt 同目录）——图像检测页联调用（**只用 test 划分，别拿 train 图演示**，防泄漏纪律）；
 - `texts/解说样例.jsonl`：test 划分抽 20 条解说——文本分类页联调用（字段：game_id/live_time/text/commentator/score）。
 
