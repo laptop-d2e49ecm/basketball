@@ -1,0 +1,125 @@
+{
+  "pages": 24,
+  "checks": [
+    {
+      "page": 1,
+      "chars": 167,
+      "bounds_ok": true
+    },
+    {
+      "page": 2,
+      "chars": 857,
+      "bounds_ok": true
+    },
+    {
+      "page": 3,
+      "chars": 793,
+      "bounds_ok": true
+    },
+    {
+      "page": 4,
+      "chars": 1033,
+      "bounds_ok": true
+    },
+    {
+      "page": 5,
+      "chars": 1050,
+      "bounds_ok": true
+    },
+    {
+      "page": 6,
+      "chars": 704,
+      "bounds_ok": true
+    },
+    {
+      "page": 7,
+      "chars": 481,
+      "bounds_ok": true
+    },
+    {
+      "page": 8,
+      "chars": 580,
+      "bounds_ok": true
+    },
+    {
+      "page": 9,
+      "chars": 760,
+      "bounds_ok": true
+    },
+    {
+      "page": 10,
+      "chars": 846,
+      "bounds_ok": true
+    },
+    {
+      "page": 11,
+      "chars": 883,
+      "bounds_ok": true
+    },
+    {
+      "page": 12,
+      "chars": 386,
+      "bounds_ok": true
+    },
+    {
+      "page": 13,
+      "chars": 613,
+      "bounds_ok": true
+    },
+    {
+      "page": 14,
+      "chars": 286,
+      "bounds_ok": true
+    },
+    {
+      "page": 15,
+      "chars": 619,
+      "bounds_ok": true
+    },
+    {
+      "page": 16,
+      "chars": 86,
+      "bounds_ok": true
+    },
+    {
+      "page": 17,
+      "chars": 943,
+      "bounds_ok": true
+    },
+    {
+      "page": 18,
+      "chars": 592,
+      "bounds_ok": true
+    },
+    {
+      "page": 19,
+      "chars": 793,
+      "bounds_ok": true
+    },
+    {
+      "page": 20,
+      "chars": 673,
+      "bounds_ok": true
+    },
+    {
+      "page": 21,
+      "chars": 627,
+      "bounds_ok": true
+    },
+    {
+      "page": 22,
+      "chars": 754,
+      "bounds_ok": true
+    },
+    {
+      "page": 23,
+      "chars": 671,
+      "bounds_ok": true
+    },
+    {
+      "page": 24,
+      "chars": 1301,
+      "bounds_ok": true
+    }
+  ]
+}

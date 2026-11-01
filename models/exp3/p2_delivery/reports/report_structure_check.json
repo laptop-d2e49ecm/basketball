@@ -1,0 +1,80 @@
+{
+  "pages": 15,
+  "checks": [
+    {
+      "page": 1,
+      "chars": 166,
+      "bounds_ok": true
+    },
+    {
+      "page": 2,
+      "chars": 621,
+      "bounds_ok": true
+    },
+    {
+      "page": 3,
+      "chars": 627,
+      "bounds_ok": true
+    },
+    {
+      "page": 4,
+      "chars": 1033,
+      "bounds_ok": true
+    },
+    {
+      "page": 5,
+      "chars": 1050,
+      "bounds_ok": true
+    },
+    {
+      "page": 6,
+      "chars": 704,
+      "bounds_ok": true
+    },
+    {
+      "page": 7,
+      "chars": 543,
+      "bounds_ok": true
+    },
+    {
+      "page": 8,
+      "chars": 846,
+      "bounds_ok": true
+    },
+    {
+      "page": 9,
+      "chars": 882,
+      "bounds_ok": true
+    },
+    {
+      "page": 10,
+      "chars": 385,
+      "bounds_ok": true
+    },
+    {
+      "page": 11,
+      "chars": 610,
+      "bounds_ok": true
+    },
+    {
+      "page": 12,
+      "chars": 617,
+      "bounds_ok": true
+    },
+    {
+      "page": 13,
+      "chars": 86,
+      "bounds_ok": true
+    },
+    {
+      "page": 14,
+      "chars": 554,
+      "bounds_ok": true
+    },
+    {
+      "page": 15,
+      "chars": 1094,
+      "bounds_ok": true
+    }
+  ]
+}

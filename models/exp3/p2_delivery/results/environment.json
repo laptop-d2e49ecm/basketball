@@ -1,0 +1,15 @@
+{
+  "CPU": "AMD Ryzen 7 5800H with Radeon Graphics",
+  "RAM_GiB": 13.855525970458984,
+  "OS": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.7",
+  "torch": "2.14.1+cu132",
+  "torchvision": "0.29.1+cu132",
+  "ultralytics": "8.4.183",
+  "onnx": "1.23.2",
+  "onnxruntime": "1.31.0",
+  "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+  "nncf": "3.4.0",
+  "execution_device": "CPU only",
+  "threads": 4
+}

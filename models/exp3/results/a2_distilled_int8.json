@@ -1,0 +1,21 @@
+{
+  "model": "a2_distilled_int8.onnx",
+  "backend": "onnxruntime",
+  "precision": "int8",
+  "hardware": "ryzen7-6800h-cpu",
+  "size_mb": 3.5,
+  "params_m": 3.13,
+  "flops_g": 8.6,
+  "map50": 0.412,
+  "map50_95": 0.240,
+  "note": "蒸馏(0.418)+INT8(val346校准,E1同口径)组合: 量化掉 0.6pp, 对比原版 A2 量化几乎无损(0.419→0.420) —— 发现: 蒸馏学生对 INT8 舍入更敏感, 叠加非无损; 相对蒸馏 FP32 体积 -73%; 任务书量化达标线(≤2%)仍满足; exp4 部署推荐仍为 a2_int8_val346.onnx(0.420)",
+  "lat_single_ms_p50": null,
+  "lat_single_ms_p95": null,
+  "lat_batch32_ms": null,
+  "fps": null,
+  "ap_small": null,
+  "ap_medium": null,
+  "ap_large": null,
+  "noise_map50": null,
+  "mem_peak_mb": null
+}

@@ -1,0 +1,6 @@
+path: data/splits/yolo
+train: D:/Projects/python/basketball/exp3/p2_check/test190.txt
+val: D:/Projects/python/basketball/exp3/p2_check/test190.txt
+test: D:/Projects/python/basketball/exp3/p2_check/test190.txt
+names:
+  0: player

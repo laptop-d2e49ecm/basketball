@@ -1,0 +1,109 @@
+{
+  "criterion": "validation AP50/AP50:95 maximum absolute difference <=1 percentage point; among eligible GPU candidates choose lowest formal single-image p50; test labels not used",
+  "candidates": [
+    {
+      "model": "models/a2_original.pt",
+      "tag": "a2_original",
+      "pipeline": false,
+      "val": {
+        "map50_95": 0.7850975291465458,
+        "map50": 0.9848393725433414,
+        "map75": 0.8974076123446733,
+        "ap_small": 0.19999999999999998,
+        "ap_medium": 0.7869267471004265,
+        "ap_large": 0.7880797724231611
+      },
+      "maximum_val_AP_difference_pp": 0.0,
+      "eligible": true,
+      "p50_ms": 23.07985000516055,
+      "batch32_fps": 63.77714098538969
+    },
+    {
+      "model": "models/a2_distilled.pt",
+      "tag": "a2_distilled",
+      "pipeline": false,
+      "val": {
+        "map50_95": 0.7842513909187571,
+        "map50": 0.9863666461987786,
+        "map75": 0.8958271796798417,
+        "ap_small": 0.015384615384615389,
+        "ap_medium": 0.7866631336118547,
+        "ap_large": 0.7838727884156714
+      },
+      "maximum_val_AP_difference_pp": 0.15272736554371447,
+      "eligible": true,
+      "p50_ms": 24.264250001579057,
+      "batch32_fps": 58.73453255928868
+    },
+    {
+      "model": "models/a2_temperature.pt",
+      "tag": "a2_temperature",
+      "pipeline": false,
+      "val": {
+        "map50_95": 0.7876050322868612,
+        "map50": 0.987277192020739,
+        "map75": 0.8975885211552308,
+        "ap_small": 0.04857026143790849,
+        "ap_medium": 0.7871559190991552,
+        "ap_large": 0.7951624628815643
+      },
+      "maximum_val_AP_difference_pp": 0.2507503140315337,
+      "eligible": true,
+      "p50_ms": 24.24649999011308,
+      "batch32_fps": 59.0599330788153
+    },
+    {
+      "model": "models/a2_trt_fp16.engine",
+      "tag": "a2_trt_fp16_pipeline",
+      "pipeline": true,
+      "val": {
+        "map50_95": 0.7861966720642654,
+        "map50": 0.9833758648174524,
+        "map75": 0.8970588834581634,
+        "ap_small": 0.19999999999999998,
+        "ap_medium": 0.7878303152589639,
+        "ap_large": 0.790877321286243
+      },
+      "maximum_val_AP_difference_pp": 0.14635077258889906,
+      "eligible": true,
+      "p50_ms": 10.756949995993637,
+      "batch32_fps": 178.20073226335649
+    },
+    {
+      "model": "models/a2_distilled_trt_fp16.engine",
+      "tag": "a2_distilled_trt_fp16_pipeline",
+      "pipeline": true,
+      "val": {
+        "map50_95": 0.7857934991237243,
+        "map50": 0.9863787723579103,
+        "map75": 0.8965869155862719,
+        "ap_small": 0.015384615384615389,
+        "ap_medium": 0.7880660760242918,
+        "ap_large": 0.7867590044414752
+      },
+      "maximum_val_AP_difference_pp": 0.15393998145688537,
+      "eligible": true,
+      "p50_ms": 9.694499996840023,
+      "batch32_fps": 232.3729251457771
+    }
+  ],
+  "selected": {
+    "model": "models/a2_distilled_trt_fp16.engine",
+    "tag": "a2_distilled_trt_fp16_pipeline",
+    "pipeline": true,
+    "val": {
+      "map50_95": 0.7857934991237243,
+      "map50": 0.9863787723579103,
+      "map75": 0.8965869155862719,
+      "ap_small": 0.015384615384615389,
+      "ap_medium": 0.7880660760242918,
+      "ap_large": 0.7867590044414752
+    },
+    "maximum_val_AP_difference_pp": 0.15393998145688537,
+    "eligible": true,
+    "p50_ms": 9.694499996840023,
+    "batch32_fps": 232.3729251457771
+  },
+  "model_sha256": "9b7aad25ad10234ae418782be0dabb53a1c38c6e1282a6ef6485b2a71859b6a1",
+  "date": "2026-10-27 22:49:46"
+}

@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "amp": "auto",
+      "gradient_flow": true,
+      "optimizer_update": true
+    },
+    {
+      "amp": "float16",
+      "gradient_flow": true,
+      "optimizer_update": true
+    }
+  ]
+}

@@ -1,0 +1,159 @@
+{
+  "started": "2026-10-27 17:17:31",
+  "steps": [
+    {
+      "command": [
+        "export_student_fp16.py"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "build_student_trt.py"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "bench_exp3.py",
+        "--model",
+        "models/a2_distilled_trt_fp16.engine",
+        "--device",
+        "cuda"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/a2_distilled_trt_fp16.engine"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/a2_distilled_trt_fp16.engine",
+        "--noise",
+        ".02"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "native_val.py",
+        "--models",
+        "models/a2_original.pt,models/a2_distilled.pt,models/m1_teacher.pt",
+        "--device",
+        "0"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "repeat_gpu.py",
+        "--model",
+        "models/a2_original.pt"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "repeat_gpu.py",
+        "--model",
+        "models/a2_trt_fp16.engine"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "repeat_gpu.py",
+        "--model",
+        "models/a2_distilled_trt_fp16.engine"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "bench_pipeline.py",
+        "--model",
+        "models/a2_trt_fp16.engine",
+        "--device",
+        "cuda"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "bench_pipeline.py",
+        "--model",
+        "models/a2_distilled_trt_fp16.engine",
+        "--device",
+        "cuda"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "eval_pipeline.py",
+        "--model",
+        "models/a2_trt_fp16.engine"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "eval_pipeline.py",
+        "--model",
+        "models/a2_distilled_trt_fp16.engine"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "eval_pipeline.py",
+        "--model",
+        "models/a2_trt_fp16.engine",
+        "--noise",
+        ".02"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "eval_pipeline.py",
+        "--model",
+        "models/a2_distilled_trt_fp16.engine",
+        "--noise",
+        ".02"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "repeat_pipeline.py",
+        "--model",
+        "models/a2_trt_fp16.engine"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "repeat_pipeline.py",
+        "--model",
+        "models/a2_distilled_trt_fp16.engine"
+      ],
+      "status": "complete"
+    },
+    {
+      "command": [
+        "verify_md.py"
+      ],
+      "status": "complete"
+    }
+  ],
+  "status": "complete",
+  "current": null
+}

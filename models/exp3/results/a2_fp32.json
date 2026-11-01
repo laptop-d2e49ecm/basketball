@@ -1,0 +1,21 @@
+{
+  "model": "a2_fp32.onnx",
+  "backend": "onnxruntime-cpu",
+  "precision": "fp32",
+  "hardware": "ryzen7-6800h-cpu",
+  "size_mb": 13.2,
+  "params_m": 3.13,
+  "flops_g": 8.6,
+  "map50": 0.419,
+  "map50_95": 0.245,
+  "note": "与 PyTorch 完全一致，导出无损 | 分层AP/噪声出自 eval_detail.py（自研评估器，all-point AP，与ultralytics全局口径一致：fp32=0.419）；test集小目标仅3框，small档无统计意义",
+  "lat_single_ms_p50": null,
+  "lat_single_ms_p95": null,
+  "lat_batch32_ms": null,
+  "fps": null,
+  "ap_small": 0.00024324771844820648,
+  "ap_medium": 0.39603527145939854,
+  "ap_large": 0.21216478716838408,
+  "noise_map50": 0.4173818493244208,
+  "mem_peak_mb": null
+}

@@ -1,0 +1,63 @@
+{
+  "fp32": {
+    "map50": 0.41909662595916664,
+    "ap50_small": 0.00024324771844820648,
+    "n_gt_small": 3,
+    "ap50_medium": 0.39603527145939854,
+    "n_gt_medium": 3367,
+    "ap50_large": 0.21216478716838408,
+    "n_gt_large": 208
+  },
+  "int8": {
+    "map50": 0.41526175566136025,
+    "ap50_small": 0.00023619267535029213,
+    "n_gt_small": 3,
+    "ap50_medium": 0.3947658148296623,
+    "n_gt_medium": 3367,
+    "ap50_large": 0.18215438381249616,
+    "n_gt_large": 208
+  },
+  "fp32_noise": {
+    "map50": 0.4173818493244208,
+    "ap50_small": 0.00024068532654661552,
+    "n_gt_small": 3,
+    "ap50_medium": 0.39532558674283147,
+    "n_gt_medium": 3367,
+    "ap50_large": 0.2047119847447555,
+    "n_gt_large": 208
+  },
+  "int8_noise": {
+    "map50": 0.4162262111546268,
+    "ap50_small": 7.51395907511936e-05,
+    "n_gt_small": 3,
+    "ap50_medium": 0.3967932901246192,
+    "n_gt_medium": 3367,
+    "ap50_large": 0.14852164178011157,
+    "n_gt_large": 208
+  },
+  "per_image_delta_ap": {
+    "mean": 0.0018478705719484321,
+    "std": 0.031267647103497366,
+    "min": -0.1797096663261406,
+    "max": 0.2040578664647453,
+    "hist": [
+      0,
+      0,
+      0,
+      0,
+      107,
+      272,
+      1,
+      0,
+      0,
+      0
+    ],
+    "worst_images": [
+      "D:\\Projects\\python\\basketball\\data/splits/yolo/images/test\\v_4LXTUim5anY_c013__f000475_aug0.jpg",
+      "D:\\Projects\\python\\basketball\\data/splits/yolo/images/test\\v_-6Os86HzwCs_c001__f000660_aug0.jpg",
+      "D:\\Projects\\python\\basketball\\data/splits/yolo/images/test\\v_-6Os86HzwCs_c001__f000285_aug0.jpg",
+      "D:\\Projects\\python\\basketball\\data/splits/yolo/images/test\\v_-6Os86HzwCs_c009__f000415_aug0.jpg",
+      "D:\\Projects\\python\\basketball\\data/splits/yolo/images/test\\v_-6Os86HzwCs_c009__f000250_aug0.jpg"
+    ]
+  }
+}

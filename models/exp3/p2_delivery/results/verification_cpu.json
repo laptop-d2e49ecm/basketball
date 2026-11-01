@@ -1,0 +1,150 @@
+{
+  "passed": true,
+  "device": "cpu",
+  "archive_verified_this_run": true,
+  "source_sha256": "2e8624bf93eba97a0adc7f899fbb8e4cd9fd90e42f6546c74f32cc9ba9134776",
+  "dynamic_batch_shapes": [
+    [
+      1,
+      5,
+      8400
+    ],
+    [
+      4,
+      5,
+      8400
+    ],
+    [
+      32,
+      5,
+      8400
+    ]
+  ],
+  "aspect_ratio_bounds": [
+    {
+      "width": 640,
+      "height": 640,
+      "detections": 100
+    },
+    {
+      "width": 960,
+      "height": 360,
+      "detections": 100
+    },
+    {
+      "width": 320,
+      "height": 800,
+      "detections": 100
+    }
+  ],
+  "reused_CPU_prediction_checks": [
+    {
+      "model": "models/a2_fp32.onnx",
+      "image": "v_-6Os86HzwCs_c001__f000005.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_fp32.onnx",
+      "image": "v_-6Os86HzwCs_c001__f000025.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_fp32.onnx",
+      "image": "v_-6Os86HzwCs_c001__f000040.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_fp32.onnx",
+      "image": "v_-6Os86HzwCs_c001__f000065.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_int8_train1000_pc_reg2fp32.onnx",
+      "image": "v_-6Os86HzwCs_c001__f000005.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_int8_train1000_pc_reg2fp32.onnx",
+      "image": "v_-6Os86HzwCs_c001__f000025.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_int8_train1000_pc_reg2fp32.onnx",
+      "image": "v_-6Os86HzwCs_c001__f000040.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_int8_train1000_pc_reg2fp32.onnx",
+      "image": "v_-6Os86HzwCs_c001__f000065.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_openvino_fp32/model.xml",
+      "image": "v_-6Os86HzwCs_c001__f000005.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_openvino_fp32/model.xml",
+      "image": "v_-6Os86HzwCs_c001__f000025.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_openvino_fp32/model.xml",
+      "image": "v_-6Os86HzwCs_c001__f000040.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_openvino_fp32/model.xml",
+      "image": "v_-6Os86HzwCs_c001__f000065.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_openvino_int8_dflfp32/model.xml",
+      "image": "v_-6Os86HzwCs_c001__f000005.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_openvino_int8_dflfp32/model.xml",
+      "image": "v_-6Os86HzwCs_c001__f000025.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_openvino_int8_dflfp32/model.xml",
+      "image": "v_-6Os86HzwCs_c001__f000040.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "model": "models/a2_openvino_int8_dflfp32/model.xml",
+      "image": "v_-6Os86HzwCs_c001__f000065.jpg",
+      "max_abs_diff": 0.0
+    }
+  ],
+  "measured_configs": 9,
+  "source_hashes": {
+    "after_cpu.py": "69443a7382bbc54b9304924b02329b4fbaa7b77ba9a172f6f22c4992d36c4523",
+    "analyze_cpu.py": "6350355ac589631ad7e9bc7b41fd3ede66d49a7e55e0abf3f609560aa66afb52",
+    "bench_exp3.py": "d03143ff6c8e5d6913dd77d4d70db8b65ee9e01f1919bcfc0b2d1ac51a8563ad",
+    "bootstrap.py": "e6079540f8e07e73f9a1319df67fc473feeea2178efba03619461a2d7678862f",
+    "build_cpu_report.py": "9fdcd788733367c22f0373c74f62540d4c9f7ef3ff4807fe48b7d954f93e6a5d",
+    "cpu_runtime.py": "e74579586e29caa390d562bfc6dd5c02c2ea271a159df79c0842c7e7b1671862",
+    "eval_detail.py": "be527a06d86a4fd9568edc37441f978dad3e3139e388334dc36f1f4e9f9ead3d",
+    "export_fp16.py": "c69f606245e413c9b051dfa18a90b8a0165daf5d844dd25c9c65bee6f929a450",
+    "export_fp32.py": "a0129c7c1d2629be9397c31abc4d7486687b12c004aa1c2b80f5acb2d3c1d299",
+    "export_quant.py": "c0e04dfc4b4f88cf41c725bec93e3ac4c5132850c284e78e38a5ef2681d32944",
+    "finish_cpu.py": "4ec47f12b3cbf6c1d8be1d4157e3ecd12155ec5c8c32dba9b7f63a1c22256aaf",
+    "infer.py": "a6bde51ed89f99d58b010e41d9db5b23e92b9a80bb8e9fd2a58b0ceba72a984d",
+    "lock_selection.py": "48b83cf49eee21a0e1b38fb7ff52a98e63c4ad9bdaf69aadd364aad1d8df4ebc",
+    "metrics.py": "4a79f528af8c1ae99b1571dc19a2a5c9d702622a04b8b49a8a6b167470047c39",
+    "native_val.py": "b43547bb194927108dc4b2537cae08544bdee1c53f12c63bf7c67959921d967e",
+    "package_cpu.py": "eee008899eed330f8a4aa14da408d41822af8ea1e36b1f00c33de0904e1cb933",
+    "plot_cpu.py": "d99b1f219ad1bf0691f92d0cc78ba6a2efdd99076660cdc394f729784a172830",
+    "quant_ov_dfl.py": "3b2979a4e77af1c6c73f7f03c6626d3db429ae422e4b9b7fb2cf422d55449baf",
+    "render_cpu_report.py": "d4a32660c0b80aa503f9f2c613a34024fc18c00450669811134afd3078f173b1",
+    "repeat_cpu.py": "06c892b2ac78c0c876669bef57aa8e9f73f300e620dda30e2712a96f5621e426",
+    "resolution_runtime.py": "41b3cd06a5c495355bce061a3f2535b226afa148fabf9c7d8084a9840f387876",
+    "run_cpu.py": "82764e4d6b8bae011d599d1b02eaa537c8cc9dcc570e1a77e07bf6e69af1f4df",
+    "try_resolution_cpu.py": "056a6ec2d011351980e328217005e612bea3d0085022862fa28ee7fea7b28e4b",
+    "tune_cpu.py": "f98bf61d7d1ee485b10df2f09cc8b540ade02f9beefbff1d0a99fbad25423a90",
+    "verify_cpu.py": "8ef3661f2540cfd574e631ea8ea602fa430a2294e694d1348d0219608011d34b"
+  }
+}

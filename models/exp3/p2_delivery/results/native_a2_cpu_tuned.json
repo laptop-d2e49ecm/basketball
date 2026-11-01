@@ -1,0 +1,31 @@
+{
+  "model": "models/a2_cpu_tuned/model.xml",
+  "CPU_validation_alias_sha256": {
+    "model.xml": "a5f9194fd9794974c95ef60cca1f114aa12f0ad0e1eb7a08f095d4c5c6195219",
+    "model.bin": "0c47c823a9eec5ad4078b147d7cecc207d1b5f5c4fcc1d5ee6f3d0d4ceae76d3"
+  },
+  "device": "cpu",
+  "native_ultralytics": {
+    "metrics/precision(B)": 0.9865499847871443,
+    "metrics/recall(B)": 0.9575892857142857,
+    "metrics/mAP50(B)": 0.984323550697106,
+    "metrics/mAP50-95(B)": 0.7257931745587067,
+    "fitness": 0.7257931745587067
+  },
+  "speed": {
+    "preprocess": 1.6014189474892766,
+    "inference": 43.18417473682769,
+    "loss": 0.0003957894621539469,
+    "postprocess": 4.94128315788801
+  },
+  "protocol": {
+    "split": "clean original test190",
+    "batch": 4,
+    "imgsz": 640,
+    "conf": 0.001,
+    "iou": 0.55,
+    "max_det": 100,
+    "rect": false
+  },
+  "note": "Ultralytics native metric; keep separate from pycocotools COCOeval and custom AP"
+}

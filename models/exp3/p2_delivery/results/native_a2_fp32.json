@@ -1,0 +1,26 @@
+{
+  "model": "models/a2_fp32.onnx",
+  "native_ultralytics": {
+    "metrics/precision(B)": 0.9865500141896533,
+    "metrics/recall(B)": 0.9575892857142857,
+    "metrics/mAP50(B)": 0.984323550697106,
+    "metrics/mAP50-95(B)": 0.7257928484042233,
+    "fitness": 0.7257928484042233
+  },
+  "speed": {
+    "preprocess": 2.075513683590352,
+    "inference": 54.761763158144035,
+    "loss": 0.00046684167739984234,
+    "postprocess": 10.813927896455617
+  },
+  "protocol": {
+    "split": "clean original test190",
+    "batch": 4,
+    "imgsz": 640,
+    "conf": 0.001,
+    "iou": 0.55,
+    "max_det": 100,
+    "rect": false
+  },
+  "note": "Ultralytics native metric; keep separate from pycocotools COCOeval and custom AP"
+}

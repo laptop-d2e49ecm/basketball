@@ -1,0 +1,26 @@
+{
+  "model": "models/a2_distilled.pt",
+  "native_ultralytics": {
+    "metrics/precision(B)": 0.9868253635532496,
+    "metrics/recall(B)": 0.9564732142857143,
+    "metrics/mAP50(B)": 0.9818858760029772,
+    "metrics/mAP50-95(B)": 0.7306315624851913,
+    "fitness": 0.7306315624851913
+  },
+  "speed": {
+    "preprocess": 0.39026526340565304,
+    "inference": 5.162970000023243,
+    "loss": 0.002156841985293125,
+    "postprocess": 1.3222789471527856
+  },
+  "protocol": {
+    "split": "clean original test190",
+    "batch": 4,
+    "imgsz": 640,
+    "conf": 0.001,
+    "iou": 0.55,
+    "max_det": 100,
+    "rect": false
+  },
+  "note": "Ultralytics native metric; keep separate from pycocotools COCOeval and custom AP"
+}

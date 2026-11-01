@@ -1,0 +1,18 @@
+{
+  "version": "11.4.0.106",
+  "GPU": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "CUDA": "13.2",
+  "source": "a2_fp16.onnx",
+  "precision": "explicit FP16 ONNX with FP32 I/O; strongly typed TensorRT11",
+  "profile": {
+    "min": 1,
+    "opt": 8,
+    "max": 32
+  },
+  "workspace_MiB": 512,
+  "seconds": 193.59544277191162,
+  "bytes": 9064076,
+  "sha256": "aa4dc85292660f425cdf6124da33e845bf014af18c5bbbf17eb5539e66699ab2",
+  "Kaggle_T4_executed": false,
+  "portability": "engine tied to local GPU/software; rebuild on T4"
+}

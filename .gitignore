@@ -22,13 +22,23 @@ vendor/*.dll
 venv/
 
 # 模型权重与训练产物（大文件，走压缩包/网盘分发，不入库）
-models/
 runs/
 *.pt
 *.pth
 *.onnx
 *.ckpt
 *.partial
+
+# models/ 目录：权重与 P2 交付包内的数据集图片副本不入库，保留证据链小文件
+# （README、结果 json、脚本、曲线图等，见 models/exp3/README.md）
+models/**/*.engine
+models/**/*.xml
+models/**/*.bin
+models/**/*.npz
+models/**/*.jpg
+models/**/*.txt
+models/**/*.pyc
+models/**/*.cache
 
 # 交接/分享压缩包及解压目录
 *.zip

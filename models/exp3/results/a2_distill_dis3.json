@@ -1,0 +1,21 @@
+{
+  "model": "a2_distill_dis3.pt",
+  "backend": "pytorch",
+  "precision": "fp32",
+  "hardware": "ryzen7-6800h-cpu",
+  "size_mb": 6.3,
+  "params_m": 3.13,
+  "flops_g": 8.6,
+  "map50": 0.420,
+  "map50_95": 0.246,
+  "note": "蒸馏权重消融 dis=3（其余同主跑: 12ep, lr0=0.002, T4）; test 380 0.420",
+  "lat_single_ms_p50": null,
+  "lat_single_ms_p95": null,
+  "lat_batch32_ms": null,
+  "fps": null,
+  "ap_small": null,
+  "ap_medium": null,
+  "ap_large": null,
+  "noise_map50": null,
+  "mem_peak_mb": null
+}

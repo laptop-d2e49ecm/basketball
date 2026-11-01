@@ -1,0 +1,21 @@
+{
+  "model": "a2_distilled.pt",
+  "backend": "pytorch",
+  "precision": "fp32",
+  "hardware": "ryzen7-6800h-cpu",
+  "size_mb": 6.3,
+  "params_m": 3.13,
+  "flops_g": 8.6,
+  "map50": 0.418,
+  "map50_95": 0.245,
+  "note": "M1(YOLOv8m, mAP50 0.424)→A2(YOLOv8n) 内置特征蒸馏: 12ep, dis=6.0, lr0=0.002, seed=42, Kaggle T4; test 380 与未蒸馏 A2(0.419) 持平, 距教师 -0.6pp(任务书'损失≤1%'达标); val 346 上 0.420; dis_loss 4.07→0.92",
+  "lat_single_ms_p50": null,
+  "lat_single_ms_p95": null,
+  "lat_batch32_ms": null,
+  "fps": null,
+  "ap_small": null,
+  "ap_medium": null,
+  "ap_large": null,
+  "noise_map50": null,
+  "mem_peak_mb": null
+}

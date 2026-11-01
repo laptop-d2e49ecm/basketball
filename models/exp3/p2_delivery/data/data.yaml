@@ -1,0 +1,7 @@
+# P2 交付数据（原始帧划分 train 2158 / val 173 / test 190，共 2521 张，无增强副本）
+# 原文件为 P2 机器上的绝对路径（微信传输目录），整合时改为本机路径
+path: D:/Projects/python/basketball/exp3/p2_delivery/data
+train: images/train
+val: images/val
+test: images/test
+names: {0: player}

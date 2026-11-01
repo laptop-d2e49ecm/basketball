@@ -1,0 +1,72 @@
+{
+  "A2 (PyTorch FP32)": {
+    "model": "exp3/models/a2.pt",
+    "map50": 0.9868,
+    "map50_95": 0.7338,
+    "P": 0.9839,
+    "R": 0.9621
+  },
+  "A2 (ONNX FP32)": {
+    "model": "exp3/models/a2_fp32.onnx",
+    "map50": 0.9868,
+    "map50_95": 0.7338,
+    "P": 0.9839,
+    "R": 0.9621
+  },
+  "INT8 E1 (val346)": {
+    "model": "exp3/models/a2_int8_val346.onnx",
+    "map50": 0.988,
+    "map50_95": 0.7165,
+    "P": 0.9816,
+    "R": 0.9637
+  },
+  "INT8 E2 (train500)": {
+    "model": "exp3/models/a2_int8_train500.onnx",
+    "map50": 0.9878,
+    "map50_95": 0.7098,
+    "P": 0.9813,
+    "R": 0.9649
+  },
+  "INT8 E4 (per-channel)": {
+    "model": "exp3/models/a2_int8_val346_pc.onnx",
+    "map50": 0.9861,
+    "map50_95": 0.7163,
+    "P": 0.9815,
+    "R": 0.9604
+  },
+  "A2 蒸馏 dis=3": {
+    "model": "exp3/models/a2_distill_dis3.pt",
+    "map50": 0.9857,
+    "map50_95": 0.734,
+    "P": 0.9831,
+    "R": 0.9682
+  },
+  "A2 蒸馏 dis=6": {
+    "model": "exp3/models/a2_distilled.pt",
+    "map50": 0.9851,
+    "map50_95": 0.7331,
+    "P": 0.9824,
+    "R": 0.9676
+  },
+  "A2 蒸馏 dis=9": {
+    "model": "exp3/models/a2_distill_dis9.pt",
+    "map50": 0.9826,
+    "map50_95": 0.7362,
+    "P": 0.9859,
+    "R": 0.9671
+  },
+  "A2 蒸馏+INT8": {
+    "model": "exp3/models/a2_distilled_int8.onnx",
+    "map50": 0.9852,
+    "map50_95": 0.7142,
+    "P": 0.9791,
+    "R": 0.9699
+  },
+  "M1 教师 (YOLOv8m)": {
+    "model": "models/exp2/A2_yolov8m/weights/best.pt",
+    "map50": 0.9895,
+    "map50_95": 0.7674,
+    "P": 0.9863,
+    "R": 0.9738
+  }
+}

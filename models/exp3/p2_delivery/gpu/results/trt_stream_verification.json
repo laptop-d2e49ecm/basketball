@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "dedicated_CUDA_stream": true,
+  "matches_archived_default_stream_predictions": [
+    {
+      "name": "v_-6Os86HzwCs_c001__f000005.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "name": "v_-6Os86HzwCs_c001__f000025.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "name": "v_-6Os86HzwCs_c001__f000040.jpg",
+      "max_abs_diff": 0.0
+    },
+    {
+      "name": "v_-6Os86HzwCs_c001__f000065.jpg",
+      "max_abs_diff": 0.0
+    }
+  ]
+}

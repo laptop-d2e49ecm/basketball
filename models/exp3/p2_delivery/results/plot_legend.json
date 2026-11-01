@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "label": "OpenVINO FP32 4 threads"
+  },
+  {
+    "id": 2,
+    "label": "ORT FP16"
+  },
+  {
+    "id": 3,
+    "label": "ORT FP32"
+  },
+  {
+    "id": 4,
+    "label": "ORT INT8 mixed"
+  },
+  {
+    "id": 5,
+    "label": "OpenVINO FP32 LAT"
+  },
+  {
+    "id": 6,
+    "label": "OpenVINO FP32 THR"
+  },
+  {
+    "id": 7,
+    "label": "OpenVINO INT8 LAT"
+  },
+  {
+    "id": 8,
+    "label": "OpenVINO INT8 THR"
+  },
+  {
+    "id": 9,
+    "label": "A2 PyTorch FP32"
+  }
+]

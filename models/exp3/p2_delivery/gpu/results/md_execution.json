@@ -1,0 +1,211 @@
+{
+  "started": "2026-10-26 20:30:34",
+  "steps": {
+    "train_distillation": {
+      "status": "complete",
+      "start": 1793091667.1504018,
+      "command": [
+        "distill_yolo.py",
+        "--epochs",
+        "12",
+        "--microbatch",
+        "16"
+      ],
+      "seconds": 186.4852249622345,
+      "outputs": {
+        "results/distill_done.json": "21d847c1d9e1105788a54088250fa8f8896174cbfa3ff7651c12f51b14ca9940",
+        "models/a2_distilled.pt": "10d823d97900cb68d0be9fc18058e44b7831f08390c7e4e58ec9bfe9a965b578"
+      }
+    },
+    "bench_original_cpu": {
+      "status": "complete",
+      "start": 1793091853.665367,
+      "command": [
+        "bench_exp3.py",
+        "--model",
+        "models/a2_original.pt",
+        "--device",
+        "cpu"
+      ],
+      "seconds": 173.90755009651184,
+      "outputs": {
+        "results/bench_a2_original_cpu_LATENCY.json": "00df3d366bac43a5bfdff346c9a5285a0fc911289ec5f55792515c781643d904"
+      }
+    },
+    "bench_original_gpu": {
+      "status": "complete",
+      "start": 1793092027.5824974,
+      "command": [
+        "bench_exp3.py",
+        "--model",
+        "models/a2_original.pt",
+        "--device",
+        "cuda"
+      ],
+      "seconds": 55.501890897750854,
+      "outputs": {
+        "results/bench_a2_original_cuda_LATENCY.json": "2f13d855367cfbd589143d23760daea8d1a97808484bcbe6f88c16187debe394"
+      }
+    },
+    "bench_trt_gpu": {
+      "status": "complete",
+      "start": 1793092083.0949655,
+      "command": [
+        "bench_exp3.py",
+        "--model",
+        "models/a2_trt_fp16.engine",
+        "--device",
+        "cuda"
+      ],
+      "seconds": 50.54084897041321,
+      "outputs": {
+        "results/bench_a2_trt_fp16_cuda_LATENCY.json": "e34221a3c9660c6d3c2efaa601d01fbca4937e81781cc0ffc9ae2eb47d4e72d1"
+      }
+    },
+    "bench_distilled_gpu": {
+      "status": "complete",
+      "start": 1793092133.6459997,
+      "command": [
+        "bench_exp3.py",
+        "--model",
+        "models/a2_distilled.pt",
+        "--device",
+        "cuda"
+      ],
+      "seconds": 59.01501226425171,
+      "outputs": {
+        "results/bench_a2_distilled_cuda_LATENCY.json": "c712e2b0cd2a9b634706afd9a097163101bbddd5bc21ae775a3ed9ec6680eb82"
+      }
+    },
+    "eval_original": {
+      "status": "complete",
+      "start": 1793092192.671888,
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/a2_original.pt"
+      ],
+      "seconds": 38.05355215072632,
+      "outputs": {
+        "results/eval_a2_original_test.json": "bec06231af99db9bb4d233f2e40acd8ca44b6b60b22281b059793ed6599414ed"
+      }
+    },
+    "eval_original_noise": {
+      "status": "complete",
+      "start": 1793092230.7355323,
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/a2_original.pt",
+        "--noise",
+        ".02"
+      ],
+      "seconds": 39.767122745513916,
+      "outputs": {
+        "results/eval_a2_original_test_noise002.json": "e24de1405f638930c50bf1f6a8a8b35fd724e640b0811dbd07196b688a41dc99"
+      }
+    },
+    "eval_trt": {
+      "status": "complete",
+      "start": 1793092270.5163708,
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/a2_trt_fp16.engine"
+      ],
+      "seconds": 33.86777591705322,
+      "outputs": {
+        "results/eval_a2_trt_fp16_test.json": "c80494bdea5f11c4e95b965b346f9450b2821ac7ddcea2eb862d53d9f71dc09b"
+      }
+    },
+    "eval_trt_noise": {
+      "status": "complete",
+      "start": 1793092304.3928869,
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/a2_trt_fp16.engine",
+        "--noise",
+        ".02"
+      ],
+      "seconds": 38.08778119087219,
+      "outputs": {
+        "results/eval_a2_trt_fp16_test_noise002.json": "10c95e10d448a2af2d0ebb1e60c7b9a54b676b93c2d8678ca289b55efa754d28"
+      }
+    },
+    "eval_distilled": {
+      "status": "complete",
+      "start": 1793092342.4902215,
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/a2_distilled.pt"
+      ],
+      "seconds": 23.3217453956604,
+      "outputs": {
+        "results/eval_a2_distilled_test.json": "11a8f8bc5b6677d422d6173a28c4fdb355e942d717cd8520f5924dbcf108dfeb"
+      }
+    },
+    "eval_distilled_noise": {
+      "status": "complete",
+      "start": 1793092365.820815,
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/a2_distilled.pt",
+        "--noise",
+        ".02"
+      ],
+      "seconds": 27.853166341781616,
+      "outputs": {
+        "results/eval_a2_distilled_test_noise002.json": "6f904d226777ddf32c032ad528d5bd75b4b1b8aad269348134246c31c1e4b112"
+      }
+    },
+    "eval_teacher": {
+      "status": "complete",
+      "start": 1793092393.683402,
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/m1_teacher.pt"
+      ],
+      "seconds": 116.34559893608093,
+      "outputs": {
+        "results/eval_m1_teacher_test.json": "b31abb6c3868ca52009fd909f24ab3b9a1011a0166110332fb38bef90dd7d78d"
+      }
+    },
+    "eval_teacher_val": {
+      "status": "complete",
+      "start": 1793092510.041246,
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/m1_teacher.pt",
+        "--split",
+        "val"
+      ],
+      "seconds": 105.30315136909485,
+      "outputs": {
+        "results/eval_m1_teacher_val.json": "85ed8a2193c8fd4e6a56349fe7cbb30cb5a68b53268a88bc6a09752762aa6e98"
+      }
+    },
+    "eval_original_val": {
+      "status": "complete",
+      "start": 1793092615.3548827,
+      "command": [
+        "eval_detail.py",
+        "--model",
+        "models/a2_original.pt",
+        "--split",
+        "val"
+      ],
+      "seconds": 33.513755559921265,
+      "outputs": {
+        "results/eval_a2_original_val.json": "db36002954d8a36a348077bfef6e1dc49a0f023943d5bbb7a62d24073d679e63"
+      }
+    }
+  },
+  "current": null,
+  "status": "complete",
+  "updated": "2026-10-27 17:17:28"
+}

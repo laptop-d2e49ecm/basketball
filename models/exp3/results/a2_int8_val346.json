@@ -1,0 +1,21 @@
+{
+  "model": "a2_int8_val346.onnx",
+  "backend": "onnxruntime-cpu",
+  "precision": "int8",
+  "hardware": "ryzen7-6800h-cpu",
+  "size_mb": 3.6,
+  "params_m": 3.13,
+  "flops_g": 8.6,
+  "map50": 0.42,
+  "map50_95": 0.246,
+  "note": "E1: 内置静态量化, val346 校准, per-tensor, 仅量化 Conv/Gemm/MatMul; 首选部署版本 | 分层AP/噪声出自 eval_detail.py（自研评估器，all-point AP，与ultralytics全局口径一致：fp32=0.419）；test集小目标仅3框，small档无统计意义",
+  "lat_single_ms_p50": null,
+  "lat_single_ms_p95": null,
+  "lat_batch32_ms": null,
+  "fps": null,
+  "ap_small": 0.00023619267535029213,
+  "ap_medium": 0.3947658148296623,
+  "ap_large": 0.18215438381249616,
+  "noise_map50": 0.4162262111546268,
+  "mem_peak_mb": null
+}
