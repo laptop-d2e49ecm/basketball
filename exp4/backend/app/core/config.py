@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent          # exp4/backend/
+BASE_DIR = Path(__file__).resolve().parents[2]          # exp4/backend/（config→core→app→backend）
 ML_DIR = BASE_DIR / "app" / "ml"
 WEIGHTS_DIR = BASE_DIR / "weights"
 RUNS_DIR = Path(os.environ.get("EXP4_RUNS_DIR", BASE_DIR / "runs"))

@@ -198,3 +198,20 @@ share_exp4/
 ```
 
 打包名：`实验4_前后端完整代码模型与报告.zip`（预计 <60MB，含 6.5MB best.pt 与演示视频）。
+
+---
+
+## 十、执行进度（2026-11-01 更新）
+
+| 部分 | 负责人 | 状态 | 关键产出 |
+|---|---|---|---|
+| 契约件（信封/异常/坐标/校验/ONNX 封装） | 本侧 | ✅ 完成 | `exp4/backend/app/core|services/`，已随交接包发给视频主线 |
+| 文本动作分类器 | 本侧 | ✅ 完成 | 40,376 条语料 → 10 类，留出集 acc 0.9968（弱监督规则一致性口径）；域判定=规则命中 OR prob≥0.5 |
+| 三 API（detect/text/match + batch 异步 + health/meta） | 本侧 | ✅ 完成 | `exp4/backend/`，pytest 14 项全绿 |
+| 性能实测 | 本侧 | ✅ 完成 | `exp4/bench_results.json`：检测 e2e 均值 132.8ms/P95 137.1ms、文本 7.9ms、匹配 139.0ms（合格线 2000ms） |
+| 前端三核心页 | 本侧 | ✅ 完成 | `exp4/frontend/`：Vue3+AntD Vue，vite build 通过，vitest 坐标契约 2 项全绿，经 5173 代理联调全链路通过 |
+| Postman 集合 | 本侧 | ✅ 完成 | `exp4/backend/postman_collection.json`（11 请求含正反用例） |
+| 前端骨架+视频页 | 队友 | ⬜ 进行中 | 按《前端后端架构设计.md》v2 + 交接包契约 |
+| tasks/WS/SQLite/Worker | 队友 | ⬜ 进行中 | 同上 |
+| 跨平台浏览器测试矩阵 | 合并后 | ⬜ | 三浏览器逐页点检表 |
+| 报告 + 最终打包 | 合写 | ⬜ | `实验4_前后端完整代码模型与报告.zip` |

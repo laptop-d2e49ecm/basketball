@@ -49,3 +49,13 @@ share_*/
 
 # 报告构建产物
 .report_build/
+
+# 实验 4：前端与后端运行产物（依赖与产物可重建，不入库；指标 json 保留作证据）
+node_modules/
+dist/
+*.joblib
+.pytest_cache/
+exp4/backend/tasks.db
+exp4/backend/runs/
+exp4/backend/static/
+

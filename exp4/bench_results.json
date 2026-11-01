@@ -1,0 +1,58 @@
+{
+  "bench_at": "2026-11-01T20:35:38",
+  "machine": "Windows-10-10.0.26200-SP0 / AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+  "spec": "任务书合格线：前端展示延迟 ≤2000ms（client_e2e 为同机 HTTP 往返口径，n=10/10/5）",
+  "detect": {
+    "client_e2e": {
+      "n": 10,
+      "avg_ms": 132.8,
+      "p50_ms": 132.8,
+      "p95_ms": 137.1,
+      "min_ms": 129.5,
+      "max_ms": 137.1
+    },
+    "server_infer": {
+      "n": 10,
+      "avg_ms": 109.1,
+      "p50_ms": 109.2,
+      "p95_ms": 111.3,
+      "min_ms": 106.1,
+      "max_ms": 111.3
+    },
+    "player_count_last": 10,
+    "image_kb": 157.2
+  },
+  "text": {
+    "client_e2e": {
+      "n": 10,
+      "avg_ms": 7.9,
+      "p50_ms": 8.1,
+      "p95_ms": 8.7,
+      "min_ms": 7.0,
+      "max_ms": 8.7
+    },
+    "labels_seen": [
+      "投篮",
+      "暂停换人",
+      "犯规违例"
+    ]
+  },
+  "match": {
+    "client_e2e": {
+      "n": 5,
+      "avg_ms": 139.0,
+      "p50_ms": 137.7,
+      "p95_ms": 146.6,
+      "min_ms": 135.9,
+      "max_ms": 146.6
+    },
+    "server_total": {
+      "n": 5,
+      "avg_ms": 130.8,
+      "p50_ms": 130.2,
+      "p95_ms": 135.4,
+      "min_ms": 128.5,
+      "max_ms": 135.4
+    }
+  }
+}

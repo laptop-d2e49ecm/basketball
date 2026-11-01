@@ -26,6 +26,12 @@ class TextClassifier:
         self.meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
         self.classes = list(self.pipe.classes_)
         self.domain_thr = float(self.meta.get("domain_conf_thr", DOMAIN_CONF_THR))
+        # 域判定规则优先（短文本决策值低，如"换人了"；规则命中即域内，模型阈值兜底）
+        import re
+        self._rules = [re.compile(r["pattern"]) for r in self.meta.get("rules", [])]
+
+    def _rule_hit(self, text: str) -> bool:
+        return any(rx.search(text) for rx in self._rules)
 
     def predict(self, text: str) -> dict:
         t0 = time.perf_counter()
@@ -37,10 +43,11 @@ class TextClassifier:
         order = probs.argsort()[::-1]
         top3 = [{"label": self.classes[i], "prob": round(float(probs[i]), 4)} for i in order[:3]]
         best = int(order[0])
-        is_domain = float(probs[best]) >= self.domain_thr
+        rule_hit = self._rule_hit(text)
+        is_domain = rule_hit or float(probs[best]) >= self.domain_thr
         return {
             "label": self.classes[best] if is_domain else "非篮球赛事文本",
-            "is_basketball_text": is_domain,
+            "is_basketball_text": bool(is_domain),
             "confidence": round(float(probs[best]), 4),
             "top3": top3,
             "chars": len(text),
