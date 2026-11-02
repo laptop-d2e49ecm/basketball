@@ -1,0 +1,11 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.venv/
+.env
+tasks.db
+tasks.db-shm
+tasks.db-wal
+runs/*
+!runs/.gitkeep
+weights/*.pt

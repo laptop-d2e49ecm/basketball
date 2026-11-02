@@ -1,0 +1,13 @@
+# 本地环境与运行结果
+backend/.venv/
+backend/venv/
+backend/runs/
+backend/tasks.db
+backend/.env
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+.runtime/
+__pycache__/
+*.pyc
+*.log
