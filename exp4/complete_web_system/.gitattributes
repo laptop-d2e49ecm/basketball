@@ -1,0 +1,7 @@
+*.pt binary
+*.onnx binary
+*.joblib binary
+*.mp4 binary
+*.jpg binary
+*.png binary
+*.zip binary

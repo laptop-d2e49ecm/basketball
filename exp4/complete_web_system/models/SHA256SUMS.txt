@@ -1,0 +1,4 @@
+2e8624bf93eba97a0adc7f899fbb8e4cd9fd90e42f6546c74f32cc9ba9134776  backend\weights\best.pt
+c9aeb08422df6c57d738be993eb7cb23947cce7b1847f52bdb867c221a493073  backend\weights\a2_int8_val346.onnx
+1e1388f0e7af8254ba3353e7af685c4e7482ac7cdcd21c9e69a41a1e8e717be8  backend\app\ml\text_action_clf.joblib
+cafca3c6a48a870312e9c1948deefb6caa03c0e911d923d16c9dd10c8c1b13a2  backend\app\ml\text_clf_meta.json
