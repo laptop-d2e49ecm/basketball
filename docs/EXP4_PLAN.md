@@ -211,7 +211,11 @@ share_exp4/
 | 性能实测 | 本侧 | ✅ 完成 | `exp4/bench_results.json`：检测 e2e 均值 132.8ms/P95 137.1ms、文本 7.9ms、匹配 139.0ms（合格线 2000ms） |
 | 前端三核心页 | 本侧 | ✅ 完成 | `exp4/frontend/`：Vue3+AntD Vue，vite build 通过，vitest 坐标契约 2 项全绿，经 5173 代理联调全链路通过 |
 | Postman 集合 | 本侧 | ✅ 完成 | `exp4/backend/postman_collection.json`（11 请求含正反用例） |
-| 前端骨架+视频页 | 队友 | ⬜ 进行中 | 按《前端后端架构设计.md》v2 + 交接包契约 |
-| tasks/WS/SQLite/Worker | 队友 | ⬜ 进行中 | 同上 |
-| 跨平台浏览器测试矩阵 | 合并后 | ⬜ | 三浏览器逐页点检表 |
-| 报告 + 最终打包 | 合写 | ⬜ | `实验4_前后端完整代码模型与报告.zip` |
+| 前端骨架+视频页 | 队友 | ✅ 完成 | `exp4/complete_web_system/frontend/`：四页+Pinia+WS 客户端+Playwright e2e（24 项过） |
+| tasks/WS/SQLite/Worker | 队友 | ✅ 完成 | `exp4/complete_web_system/backend/`：任务 API+WS+SQLite+Worker（track/事件/解说桩/耗时落库）+Celery 双模式（commit c555f28，2026-11-02） |
+| 模型完整性核验 | 本侧 | ✅ 完成 | SHA256 校验：onnx/best.pt/joblib 与原始权重逐字节一致（`models/SHA256SUMS.txt`） |
+| Firefox 浏览器测试 | 队友 | ⬜ 缺 | Playwright 已配置 firefox 项目，但 VERIFIED_TESTS 无运行记录（任务书要求三浏览器） |
+| 视频基线实测 | 双方 | ⬜ 缺 | 机制就绪（avg_infer_ms/total_seconds 落库），需用 36s 演示视频跑一次出数；另 samples/demo_video.mp4 仍是旧 2s 版需更换 |
+| Celery 模式实测 | 队友 | ⬜ 可选 | 代码就绪（worker/celery_tasks.py），需 Redis；报告如实写双模式设计即可 |
+| 跨平台浏览器测试矩阵 | 双方 | ⬜ 部分 | Chromium(Edge)+WebKit 已过，补 Firefox 即齐 |
+| 报告 + 最终打包 | 合写 | ⬜ | `实验4_前后端完整代码模型与报告.zip`（章节映射见 §八） |
