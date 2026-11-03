@@ -59,3 +59,6 @@
     pnpm test:e2e
 
 可按需复制 backend/.env.example 为 backend/.env 调整 Worker、抽帧间隔、上传大小或设备选择。默认值已经可以直接启动。
+## 演示视频与性能记录
+
+samples/demo_video.mp4 是 36.04 秒的基线视频；samples/demo_video_short.mp4 可用于快速检查上传流程。视频主线实测数据见 reports/VIDEO_BASELINE.md。

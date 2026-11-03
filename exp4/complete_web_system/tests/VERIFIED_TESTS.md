@@ -16,3 +16,5 @@
 | Edge（channel=msedge） | Chromium | 12 | ✅ 全过 | 2026-11-02（集成方） |
 | Desktop Safari | WebKit | 12 | ✅ 全过 | 2026-11-02（集成方） |
 | Desktop Firefox | Gecko | 12 | ✅ 全过 | 2026-11-02（图像/文本侧补测，`pnpm exec playwright test --project=firefox`） |
+
+- 视频主线基线：36.04 秒样例、CPU、抽帧间隔 2，450/450 帧处理完成；平均推理 25.09 ms，Worker 处理 17.285 s。详见 reports/VIDEO_BASELINE.md。
