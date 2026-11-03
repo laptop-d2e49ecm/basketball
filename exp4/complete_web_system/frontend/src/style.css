@@ -19,9 +19,10 @@ body { margin: 0; min-width: 360px; min-height: 100vh; }
 button, input { font: inherit; }
 #app { min-height: 100vh; }
 
-.app-shell { min-height: 100vh; background: #f3f5f9; }
-.side-panel { background: var(--navy) !important; position: relative; box-shadow: 7px 0 28px rgba(17, 28, 45, .07); z-index: 2; }
-.side-panel .ant-layout-sider-children { display: flex; flex-direction: column; min-height: 100vh; padding: 24px 12px 16px; }
+.app-shell { display: flex !important; flex-direction: row !important; --sidebar-width: 244px; width: 100%; min-width: 0; min-height: 100vh; background: #f3f5f9; }
+.app-shell.nav-collapsed { --sidebar-width: 76px; }
+.side-panel { position: fixed !important; inset: 0 auto 0 0; width: var(--sidebar-width) !important; min-width: var(--sidebar-width) !important; max-width: var(--sidebar-width) !important; height: 100vh !important; min-height: 0 !important; overflow-y: auto; background: var(--navy) !important; box-shadow: 7px 0 28px rgba(17, 28, 45, .07); z-index: 2; }
+.side-panel .ant-layout-sider-children { display: flex; height: 100%; min-height: 100vh; flex-direction: column; padding: 24px 12px 16px; }
 .brand-lockup { display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 11px; margin-bottom: 38px; overflow: hidden; }
 .brand-mark { width: 34px; height: 34px; flex: 0 0 auto; display: flex; align-items: end; gap: 3px; padding: 7px; border-radius: 11px; background: #f08b43; }
 .brand-mark span { flex: 1; border-radius: 3px 3px 1px 1px; background: #fff; }
@@ -44,7 +45,7 @@ button, input { font: inherit; }
 .sider-status i, .status-chip i { width: 7px; height: 7px; border-radius: 50%; background: #3cba8b; box-shadow: 0 0 0 4px rgba(60, 186, 139, .12); }
 .collapse-button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px; border: 0; border-top: 1px solid rgba(255,255,255,.08); color: #8492a5; background: transparent; cursor: pointer; font-size: 12px; }
 .collapse-button:hover { color: #fff; }
-.main-layout { min-width: 0; background: transparent !important; }
+.main-layout { width: 0; min-width: 0; flex: 1 1 0%; margin-left: var(--sidebar-width); background: transparent !important; }
 .topbar { display: flex; align-items: center; justify-content: space-between; height: 96px; padding: 18px 40px !important; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.9) !important; line-height: normal !important; }
 .topbar-title .eyebrow { color: #9aa4b3; font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500; letter-spacing: 1.7px; }
 .topbar-title h1 { margin: 6px 0 0; color: var(--ink); font-size: 21px; font-weight: 700; letter-spacing: -.3px; }
@@ -62,6 +63,7 @@ button, input { font: inherit; }
 .ant-btn-primary:hover { background: #294361 !important; }
 
 @media (max-width: 900px) {
+  .app-shell, .app-shell.nav-collapsed { --sidebar-width: 76px; }
   .side-panel { flex: 0 0 76px !important; max-width: 76px !important; min-width: 76px !important; width: 76px !important; }
   .side-panel .ant-layout-sider-children { padding-inline: 5px; }
   .brand-lockup { justify-content: center; padding: 0; margin-bottom: 28px; }
@@ -73,6 +75,7 @@ button, input { font: inherit; }
   .page-footer { padding-inline: 24px; }
 }
 @media (max-width: 620px) {
+  .app-shell, .app-shell.nav-collapsed { --sidebar-width: 62px; }
   .side-panel { flex: 0 0 62px !important; max-width: 62px !important; min-width: 62px !important; width: 62px !important; }
   .topbar { height: 82px; padding-inline: 16px !important; }
   .topbar-title h1 { font-size: 17px; }

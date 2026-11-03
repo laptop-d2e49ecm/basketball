@@ -34,7 +34,7 @@ function handleMenuClick({ key }: { key: string | number }) {
 </script>
 
 <template>
-  <a-layout class="app-shell">
+  <a-layout class="app-shell" :class="{ 'nav-collapsed': collapsed }">
     <a-layout-sider v-model:collapsed="collapsed" :width="244" :collapsed-width="76" :trigger="null" class="side-panel">
       <div class="brand-lockup">
         <div class="brand-mark"><span></span><span></span><span></span></div>

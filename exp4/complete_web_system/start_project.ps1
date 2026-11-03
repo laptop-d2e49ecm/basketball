@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir = Join-Path $Root 'backend'
@@ -51,13 +51,32 @@ function Find-Node {
     return $null
 }
 
-function Test-ApiReady {
+function Get-ApiHealth {
     try {
-        $Response = Invoke-RestMethod -Uri $ApiHealthUrl -TimeoutSec 2
-        return ($Response.code -eq 0 -and $Response.result.status -eq 'ok')
+        return Invoke-RestMethod -Uri $ApiHealthUrl -TimeoutSec 2
+    } catch {
+        return $null
+    }
+}
+
+function Test-TaskDeleteEndpoint {
+    try {
+        $Schema = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/openapi.json' -TimeoutSec 2
+        $TaskPath = $Schema.paths.PSObject.Properties['/api/v1/tasks/{task_id}'].Value
+        return ($null -ne $TaskPath -and $null -ne $TaskPath.delete)
     } catch {
         return $false
     }
+}
+
+function Test-ApiReady {
+    $Response = Get-ApiHealth
+    return (
+        $Response -and
+        $Response.code -eq 0 -and
+        $Response.result.status -eq 'ok' -and
+        (Test-TaskDeleteEndpoint)
+    )
 }
 
 function Test-FrontendReady {
@@ -159,9 +178,13 @@ try {
     }
     $env:Path = (Split-Path -Parent $NodeExe) + ';' + $env:Path
 
+    $ApiHealth = Get-ApiHealth
     $ExistingApi = Test-ApiReady
     $ApiEntry = $null
     if (-not $ExistingApi) {
+        if ($ApiHealth -and $ApiHealth.code -eq 0 -and $ApiHealth.result.status -eq 'ok') {
+            throw '检测到旧版后端正在 8000 端口运行，尚不支持删除最近任务。请先运行 stop_project.bat；若后端是从 PowerShell 手动启动的，请在那个窗口按 Ctrl+C，然后重新运行 start_project.bat。'
+        }
         $ApiEntry = Start-HiddenService 'api' $PythonExe @(
             '-u', '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000', '--app-dir', $BackendDir
         ) $BackendDir

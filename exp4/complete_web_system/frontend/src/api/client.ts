@@ -46,6 +46,11 @@ export interface TaskListItem {
   finished_at: string | null
 }
 
+export interface DeleteTaskResult {
+  task_id: string
+  deleted: boolean
+}
+
 export interface DetectionBox {
   cx: number
   cy: number
@@ -162,7 +167,11 @@ function unwrap<T>(response: AxiosResponse<ApiEnvelope<T>>): T {
 
 function apiError(error: unknown): Error {
   if (axios.isAxiosError<ApiEnvelope<unknown>>(error)) {
-    return new Error(error.response?.data?.msg || error.message || '无法连接后端服务')
+    if (error.response?.status === 405) {
+      return new Error('当前后端尚未加载任务删除功能。请停止旧后端并重新运行 start_project.bat 后再试。')
+    }
+    const responseData = error.response?.data as (ApiEnvelope<unknown> & { detail?: string }) | undefined
+    return new Error(responseData?.msg || responseData?.detail || error.message || '无法连接后端服务')
   }
   return error instanceof Error ? error : new Error('请求失败')
 }
@@ -207,6 +216,14 @@ export function getTaskPreviewUrl(taskId: string): string {
 export async function listTasks(): Promise<TaskListItem[]> {
   try {
     return unwrap(await http.get<ApiEnvelope<TaskListItem[]>>('/tasks'))
+  } catch (error) {
+    throw apiError(error)
+  }
+}
+
+export async function deleteTask(taskId: string): Promise<DeleteTaskResult> {
+  try {
+    return unwrap(await http.delete<ApiEnvelope<DeleteTaskResult>>(`/tasks/${encodeURIComponent(taskId)}`))
   } catch (error) {
     throw apiError(error)
   }

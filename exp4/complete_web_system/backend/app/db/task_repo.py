@@ -117,6 +117,28 @@ def delete_task(task_id: str) -> None:
         db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
 
 
+def delete_finished_task(task_id: str) -> tuple[str, dict[str, Any] | None]:
+    """Delete a terminal task and its notifications without racing a worker claim."""
+    with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if row is None:
+            return "not_found", None
+
+        task = _decode(row)
+        if row["status"] not in {"ready", "failed"}:
+            return "active", task
+
+        db.execute("DELETE FROM task_notifications WHERE task_id = ?", (task_id,))
+        cursor = db.execute(
+            "DELETE FROM tasks WHERE id = ? AND status IN ('ready', 'failed')",
+            (task_id,),
+        )
+        if cursor.rowcount != 1:
+            return "active", task
+        return "deleted", task
+
+
 def recover_running_tasks() -> None:
     with connection() as db:
         rows = db.execute("SELECT id FROM tasks WHERE status = 'running'").fetchall()

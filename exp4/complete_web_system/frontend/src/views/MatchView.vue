@@ -60,7 +60,7 @@ onBeforeUnmount(() => {
     <div>
       <span class="feature-kicker">IMAGE + COMMENTARY · MATCHING</span>
       <h2>对照图片与解说文字</h2>
-      <p>系统分别判断图片中是否检测到球员、文字是否属于篮球解说，再给出匹配结论。</p>
+      <p>分别检测图片中的球员、分类解说文本；此演示不判断文字描述的动作是否出现在图片里。</p>
     </div>
     <a-tag color="orange">单张图片演示</a-tag>
   </div>
@@ -97,13 +97,15 @@ onBeforeUnmount(() => {
           <a-alert
             :type="result.match ? 'success' : 'warning'"
             show-icon
-            :message="result.match ? '图片与文本都符合篮球内容' : '图片与文本未能同时确认是篮球内容'"
-            :description="`处理耗时 ${result.total_ms} ms`"
+            :message="result.match ? '图片检测到球员，解说文本属于篮球内容' : '图片或解说文本未通过篮球内容检查'"
+            :description="`处理耗时 ${result.total_ms} ms · 仅检查篮球相关性，不核验画面动作与文字是否对应`"
           />
           <a-row :gutter="14" class="evidence-grid">
             <a-col :xs="24" :md="12" :xl="12">
-              <a-card size="small" title="图片判断">
-                <img v-if="previewUrl" :src="previewUrl" alt="用于匹配的图片" class="match-preview" />
+              <a-card size="small" title="图片球员检测">
+                <a-image v-if="previewUrl" :src="previewUrl" alt="用于匹配的图片" class="match-preview">
+                  <template #previewMask>点击放大查看</template>
+                </a-image>
                 <p class="evidence-text">
                   <a-tag :color="result.image_side.is_court ? 'green' : 'default'">
                     {{ result.image_side.is_court ? '检测到球员' : '未检测到球员' }}
@@ -113,7 +115,7 @@ onBeforeUnmount(() => {
               </a-card>
             </a-col>
             <a-col :xs="24" :md="12" :xl="12">
-              <a-card size="small" title="文本判断">
+              <a-card size="small" title="解说文本分类">
                 <a-tag :color="result.text_side.is_basketball_text ? 'green' : 'default'">
                   {{ result.text_side.label }}
                 </a-tag>
@@ -129,7 +131,7 @@ onBeforeUnmount(() => {
         <a-empty v-else description="上传图片并输入解说后，这里会显示匹配结论" />
       </a-card>
       <div class="scope-note">
-        这是单张图片与文本的匹配演示，不会对整段视频进行动作与时间点匹配。
+        这是篮球相关性演示：图片侧只检测球员，文本侧单独分类。文本显示“投篮”不代表图片中检测到了投篮动作；当前不会核验图文动作是否一致。
       </div>
     </a-col>
   </a-row>
@@ -144,7 +146,7 @@ onBeforeUnmount(() => {
 .action-button { margin-top: 14px; height: 40px; }
 .match-result-card { min-height: 330px; }
 .evidence-grid { margin-top: 16px; }
-.match-preview { display: block; max-width: 100%; max-height: 180px; margin: 3px auto 10px; object-fit: contain; }
+.match-preview { display: block; max-width: 100%; max-height: 180px; margin: 3px auto 10px; object-fit: contain; cursor: zoom-in; }
 .evidence-text { margin: 10px 0 0; color: #748092; font-size: 11px; line-height: 1.8; }
 .evidence-list { margin-bottom: 0; padding-left: 20px; color: #687587; font-size: 12px; line-height: 1.8; }
 .scope-note { margin-top: 12px; padding: 12px 14px; border-radius: 9px; color: #7a8797; background: #fff; font-size: 11px; }

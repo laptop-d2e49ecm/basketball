@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import subprocess
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -177,3 +178,26 @@ def get_preview_file(task_dir: Path) -> Path | None:
         return None
     path = task_dir / filename
     return path if path.is_file() else None
+
+
+def remove_preview_task_data(task_dir: Path) -> None:
+    """Remove preview data now, or after an active conversion releases its files."""
+    task_dir = task_dir.resolve()
+    with _jobs_lock:
+        future = _jobs.get(task_dir)
+        if future is None or future.done():
+            _jobs.pop(task_dir, None)
+            defer_cleanup = False
+        else:
+            defer_cleanup = True
+
+            def cleanup_after_conversion(_: Future[None]) -> None:
+                with _jobs_lock:
+                    if _jobs.get(task_dir) is future:
+                        _jobs.pop(task_dir, None)
+                shutil.rmtree(task_dir, ignore_errors=True)
+
+    if not defer_cleanup:
+        shutil.rmtree(task_dir, ignore_errors=True)
+    elif future is not None:
+        future.add_done_callback(cleanup_after_conversion)

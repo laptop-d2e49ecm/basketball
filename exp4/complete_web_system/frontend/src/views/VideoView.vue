@@ -5,6 +5,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   CloudUploadOutlined,
+  DeleteOutlined,
   LoadingOutlined,
   PlayCircleOutlined,
   ReloadOutlined,
@@ -14,6 +15,7 @@ import {
 import {
   createTaskSocket,
   createVideoTask,
+  deleteTask,
   getDetections,
   getEvents,
   getModelMeta,
@@ -54,6 +56,7 @@ const showBoxes = ref(true)
 const detectionFrames = shallowRef<DetectionFrame[]>([])
 const modelMeta = ref<ModelMeta | null>(null)
 const recentTasks = ref<TaskListItem[]>([])
+const deletingTaskId = ref('')
 const loadedWindowStart = ref(-1)
 
 let socket: WebSocket | null = null
@@ -226,6 +229,7 @@ async function refreshTask(taskId: string) {
     } else if (fresh.status === 'failed') {
       stopPolling()
       errorText.value = fresh.error || '视频处理失败。'
+      void loadRecentTasks()
     }
   } catch (error) {
     errorText.value = error instanceof Error ? error.message : '读取任务状态失败。'
@@ -260,6 +264,7 @@ function startTaskUpdates(taskId: string) {
       errorText.value = String(data.error || '视频处理失败。')
       if (task.value) taskStore.setTask({ ...task.value, status: 'failed', stage: 'failed', error: errorText.value })
       stopPolling()
+      void loadRecentTasks()
     }
   }
   socket.onerror = () => {
@@ -356,6 +361,23 @@ async function openRecentTask(taskId: string) {
   }
 }
 
+async function removeRecentTask(taskId: string) {
+  if (deletingTaskId.value) return
+  const item = recentTasks.value.find(candidate => candidate.task_id === taskId)
+  if (!item || (item.status !== 'ready' && item.status !== 'failed')) return
+
+  deletingTaskId.value = taskId
+  try {
+    await deleteTask(taskId)
+    recentTasks.value = recentTasks.value.filter(candidate => candidate.task_id !== taskId)
+    if (task.value?.task_id === taskId) resetTask()
+  } catch (error) {
+    errorText.value = error instanceof Error ? error.message : '删除任务失败。'
+  } finally {
+    deletingTaskId.value = ''
+  }
+}
+
 async function loadDetectionWindow(force = false) {
   const taskId = task.value?.task_id
   const video = videoElement.value
@@ -447,8 +469,8 @@ function seekToEventTime(video: HTMLVideoElement, timestampMs: number) {
   const lastSeekableSecond = Number.isFinite(video.duration)
     ? Math.max(0, video.duration - 0.05)
     : targetSeconds
+  video.pause()
   video.currentTime = Math.min(targetSeconds, lastSeekableSecond)
-  void video.play().catch(() => undefined)
 }
 
 function applyPendingEventSeek() {
@@ -616,71 +638,38 @@ onBeforeUnmount(() => {
           </div>
         </a-card>
 
-        <a-card v-if="selectedFile || task" class="playback-card" :bordered="false">
-          <template #title>
-            <div class="card-heading"><span class="step-index">03</span><span>视频回放与检测框</span></div>
-          </template>
-          <template #extra>
-            <a-switch v-model:checked="showBoxes" size="small" />
-            <span class="switch-label">显示检测框</span>
-          </template>
-          <div ref="videoWrap" class="video-wrap">
-            <video
-              v-if="previewUrl || serverPreviewUrl"
-              ref="videoElement"
-              :src="serverPreviewUrl || previewUrl"
-              controls
-              playsinline
-              @loadedmetadata="onVideoReady"
-              @timeupdate="onTimeChange"
-              @seeked="onTimeChange"
-              @error="onVideoError"
-            ></video>
-            <canvas ref="canvasElement" class="detection-canvas"></canvas>
-            <div v-if="previewError || (previewStatus === 'processing' && task?.status === 'ready')" class="video-state-overlay">
-              <span class="video-state-icon"><ClockCircleOutlined /></span>
-              <strong>{{ previewStatus === 'processing' ? '正在准备浏览器预览' : '暂时无法播放视频' }}</strong>
-              <span>{{ previewError || '原始文件保留用于分析，完成后播放器会自动切换到兼容预览。' }}</span>
-            </div>
-            <div v-else-if="task?.status !== 'ready'" class="video-state-overlay">
-              <span class="video-state-icon"><ClockCircleOutlined /></span>
-              <strong>{{ taskIsActive ? '视频正在分析' : '等待分析后显示检测框' }}</strong>
-              <span>{{ taskIsActive ? '完成后可在时间轴回看球员检测结果' : '选择文件后点击“开始分析”' }}</span>
-            </div>
-            <div v-else class="frame-counter">{{ detectionFrames.length }} 帧数据已载入</div>
-          </div>
-          <div class="playback-footnote">
-            <span><i class="legend-box"></i>球员检测框</span>
-            <span>原视频叠加检测框；不兼容编码会自动转换预览</span>
-          </div>
-        </a-card>
       </main>
 
       <aside class="secondary-column">
-        <a-card class="commentary-card" :bordered="false">
-          <template #title>
-            <div class="card-heading"><span class="commentary-live"></span><span>解说时间轴</span></div>
-          </template>
-          <template #extra><span class="timeline-count">{{ commentary.length }} 条</span></template>
-          <div v-if="commentary.length" class="timeline-list">
-            <button v-for="(item, index) in commentary" :key="`${item.t_ms}-${index}`" class="timeline-item" type="button" :title="`点击跳转到 ${formatTime(item.t_ms)} 并播放`" :aria-label="`跳转到 ${formatTime(item.t_ms)}：${item.text}`" @click="jumpToEvent(item)">
-              <span class="timeline-time">{{ formatTime(item.t_ms) }}</span>
-              <span class="timeline-marker"><i></i></span>
-              <span class="timeline-copy">
-                <strong>{{ item.text }}</strong>
-                <small>启发式画面观察 · 点击跳转播放</small>
-              </span>
-            </button>
+        <a-card class="history-card" :bordered="false">
+          <template #title><div class="card-heading"><span class="history-icon"><ReloadOutlined /></span><span>最近任务</span></div></template>
+          <div v-if="recentTasks.length" class="recent-list">
+            <div v-for="item in recentTasks" :key="item.task_id" class="recent-item">
+              <button class="recent-open" type="button" @click="openRecentTask(item.task_id)">
+                <span class="recent-file"><VideoCameraOutlined /></span>
+                <span class="recent-copy"><strong>{{ item.video_name }}</strong><small>{{ new Date(item.created_at).toLocaleString() }}</small></span>
+                <a-tag :color="item.status === 'ready' ? 'success' : item.status === 'failed' ? 'error' : 'processing'">{{ item.status === 'ready' ? '完成' : item.status === 'failed' ? '失败' : '处理中' }}</a-tag>
+              </button>
+              <a-popconfirm
+                title="删除这条任务及其本地视频文件？"
+                ok-text="删除"
+                cancel-text="取消"
+                :disabled="item.status !== 'ready' && item.status !== 'failed'"
+                @confirm="removeRecentTask(item.task_id)"
+              >
+                <a-button
+                  class="recent-delete"
+                  type="text"
+                  danger
+                  :disabled="(item.status !== 'ready' && item.status !== 'failed') || !!deletingTaskId"
+                  :loading="deletingTaskId === item.task_id"
+                  :title="item.status === 'ready' || item.status === 'failed' ? '删除任务' : '任务处理中，完成后可删除'"
+                  :aria-label="`删除任务 ${item.video_name}`"
+                ><template #icon><DeleteOutlined /></template></a-button>
+              </a-popconfirm>
+            </div>
           </div>
-          <a-empty v-else class="empty-timeline">
-            <template #description>
-              <span>{{ taskIsActive ? '视频分析完成后，解说片段会显示在这里。' : '上传并分析视频后，查看带时间戳的画面描述。' }}</span>
-            </template>
-          </a-empty>
-          <div v-if="commentary.length" class="ai-note">
-            <span class="ai-note-mark">AI</span>
-            <p>解说由球员检测结果整理，仅描述画面可见人数；不代表球员身份或比赛动作。</p>
-          </div>
+          <a-empty v-else description="暂无分析记录" />
         </a-card>
 
         <a-card class="model-card" :bordered="false">
@@ -694,20 +683,75 @@ onBeforeUnmount(() => {
           <div class="device-note"><span class="device-dot"></span>Worker 自动选择可用的 CUDA 或 CPU</div>
         </a-card>
 
-        <a-card class="history-card" :bordered="false">
-          <template #title><div class="card-heading"><span class="history-icon"><ReloadOutlined /></span><span>最近任务</span></div></template>
-          <div v-if="recentTasks.length" class="recent-list">
-            <button v-for="item in recentTasks" :key="item.task_id" class="recent-item" type="button" @click="openRecentTask(item.task_id)">
-              <span class="recent-file"><VideoCameraOutlined /></span>
-              <span class="recent-copy"><strong>{{ item.video_name }}</strong><small>{{ new Date(item.created_at).toLocaleString() }}</small></span>
-              <a-tag :color="item.status === 'ready' ? 'success' : item.status === 'failed' ? 'error' : 'processing'">{{ item.status === 'ready' ? '完成' : item.status === 'failed' ? '失败' : '处理中' }}</a-tag>
-            </button>
-          </div>
-          <a-empty v-else description="暂无分析记录" />
-        </a-card>
-
         <div class="privacy-note"><span>本地处理</span><p>视频文件保存在本机后端的任务目录中。任务记录可在列表中查看。</p></div>
       </aside>
+    </div>
+
+    <div v-if="selectedFile || task" class="playback-row">
+      <a-card class="playback-card" :bordered="false">
+        <template #title>
+          <div class="card-heading"><span class="step-index">03</span><span>视频回放与检测框</span></div>
+        </template>
+        <template #extra>
+          <a-switch v-model:checked="showBoxes" size="small" />
+          <span class="switch-label">显示检测框</span>
+        </template>
+        <div ref="videoWrap" class="video-wrap">
+          <video
+            v-if="previewUrl || serverPreviewUrl"
+            ref="videoElement"
+            :src="serverPreviewUrl || previewUrl"
+            controls
+            playsinline
+            @loadedmetadata="onVideoReady"
+            @timeupdate="onTimeChange"
+            @seeked="onTimeChange"
+            @error="onVideoError"
+          ></video>
+          <canvas ref="canvasElement" class="detection-canvas"></canvas>
+          <div v-if="previewError || (previewStatus === 'processing' && task?.status === 'ready')" class="video-state-overlay">
+            <span class="video-state-icon"><ClockCircleOutlined /></span>
+            <strong>{{ previewStatus === 'processing' ? '正在准备浏览器预览' : '暂时无法播放视频' }}</strong>
+            <span>{{ previewError || '原始文件保留用于分析，完成后播放器会自动切换到兼容预览。' }}</span>
+          </div>
+          <div v-else-if="task?.status !== 'ready'" class="video-state-overlay">
+            <span class="video-state-icon"><ClockCircleOutlined /></span>
+            <strong>{{ taskIsActive ? '视频正在分析' : '等待分析后显示检测框' }}</strong>
+            <span>{{ taskIsActive ? '完成后可在时间轴回看球员检测结果' : '选择文件后点击“开始分析”' }}</span>
+          </div>
+          <div v-else class="frame-counter">{{ detectionFrames.length }} 帧数据已载入</div>
+        </div>
+        <div class="playback-footnote">
+          <span><i class="legend-box"></i>球员检测框</span>
+          <span>原视频叠加检测框；不兼容编码会自动转换预览</span>
+        </div>
+      </a-card>
+
+      <a-card class="commentary-card" :bordered="false">
+        <template #title>
+          <div class="card-heading"><span class="commentary-live"></span><span>解说时间轴</span></div>
+        </template>
+        <template #extra><span class="timeline-count">{{ commentary.length }} 条</span></template>
+        <div v-if="commentary.length" class="timeline-list">
+          <button v-for="(item, index) in commentary" :key="`${item.t_ms}-${index}`" class="timeline-item" type="button" :title="`跳转到 ${formatTime(item.t_ms)}；点击播放器播放按钮继续`" :aria-label="`跳转到 ${formatTime(item.t_ms)}：${item.text}`" @click="jumpToEvent(item)">
+            <span class="timeline-time">{{ formatTime(item.t_ms) }}</span>
+            <span class="timeline-marker"><i></i></span>
+            <span class="timeline-copy">
+              <strong>{{ item.text }}</strong>
+              <small>启发式画面观察 · 点击跳转，按播放键继续</small>
+            </span>
+          </button>
+        </div>
+        <a-empty v-else class="empty-timeline">
+          <template #description>
+            <span>{{ taskIsActive ? '视频分析完成后，解说片段会显示在这里。' : '上传并分析视频后，查看带时间戳的画面描述。' }}</span>
+          </template>
+        </a-empty>
+        <div v-if="commentary.length" class="ai-note">
+          <span class="ai-note-mark">AI</span>
+          <p>解说由球员检测结果整理，仅描述画面可见人数；不代表球员身份或比赛动作。</p>
+        </div>
+      </a-card>
     </div>
   </div>
 </template>
@@ -727,6 +771,7 @@ onBeforeUnmount(() => {
 .model-chip em { color: #a3acb8; font-size: 9px; font-style: normal; font-weight: 500; }
 .error-alert { margin-bottom: 16px; border-radius: 10px; }
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(275px, .82fr); align-items: start; gap: 18px; }
+.playback-row { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(275px, .82fr); align-items: start; gap: 18px; margin-top: 18px; }
 .primary-column, .secondary-column { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .card-heading { display: flex; align-items: center; gap: 10px; }
 .step-index { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 8px; color: #b86e3d; background: #fff2e7; font: 10px 'DM Mono', monospace; }
@@ -803,20 +848,23 @@ onBeforeUnmount(() => {
 .model-small-icon { width: 22px; height: 22px; border-radius: 7px; font-size: 11px; }
 .history-icon { color: #8998a9; font-size: 13px; }
 .recent-list { display: flex; flex-direction: column; }
-.recent-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 0; border: 0; border-bottom: 1px solid #f0f2f6; background: transparent; text-align: left; cursor: pointer; }
-.recent-item:hover .recent-copy strong { color: #b46b3a; }
+.recent-item { display: flex; align-items: center; gap: 5px; padding: 8px 0; border-bottom: 1px solid #f0f2f6; }
+.recent-open { display: flex; min-width: 0; flex: 1; align-items: center; gap: 9px; padding: 2px 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.recent-open:hover .recent-copy strong { color: #b46b3a; }
+.recent-delete { flex: 0 0 auto; }
 .recent-item:last-child { border-bottom: 0; }
 .recent-file { display: grid; width: 29px; height: 29px; flex: 0 0 auto; place-items: center; border-radius: 8px; color: #a66a42; background: #fff2e8; font-size: 12px; }
 .recent-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
 .recent-copy strong { overflow: hidden; color: #59677a; font-size: 9px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .recent-copy small { color: #aab3bf; font-size: 8px; }
-.recent-item :deep(.ant-tag) { margin: 0; padding-inline: 5px; font-size: 8px; }
+.recent-open :deep(.ant-tag) { margin: 0; padding-inline: 5px; font-size: 8px; }
 .privacy-note { padding: 12px 13px; border: 1px solid #e9edf2; border-radius: 10px; background: rgba(255,255,255,.55); }
 .privacy-note span { color: #69778b; font-size: 9px; font-weight: 700; }
 .privacy-note p { margin-top: 5px; color: #9aa4b2; font-size: 9px; line-height: 1.6; }
 
 @media (max-width: 1050px) {
   .workspace-grid { grid-template-columns: minmax(0, 1.4fr) minmax(250px, .9fr); gap: 13px; }
+  .playback-row { grid-template-columns: minmax(0, 1.4fr) minmax(250px, .9fr); gap: 13px; }
   .page-content { padding-inline: 25px; }
   .fields-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -824,6 +872,7 @@ onBeforeUnmount(() => {
   .welcome-row { align-items: start; flex-direction: column; }
   .model-chip { align-self: stretch; }
   .workspace-grid { grid-template-columns: 1fr; }
+  .playback-row { grid-template-columns: 1fr; }
   .secondary-column { grid-row: auto; }
   .task-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .task-id { grid-column: 1 / -1; }

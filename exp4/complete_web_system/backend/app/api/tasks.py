@@ -13,7 +13,12 @@ from app.core.config import settings
 from app.db import task_repo
 from app.schemas.envelope import ApiEnvelope
 from app.schemas.tasks import EventItem, TaskCreated, TaskListItem, TaskPreviewStatus, TaskStatus
-from app.services.video_preview import get_preview_file, get_preview_state, start_preview_generation
+from app.services.video_preview import (
+    get_preview_file,
+    get_preview_state,
+    remove_preview_task_data,
+    start_preview_generation,
+)
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
@@ -144,6 +149,33 @@ def get_task(task_id: str) -> ApiEnvelope[TaskStatus]:
     if row is None:
         raise HTTPException(status_code=404, detail="任务不存在")
     return ApiEnvelope(result=TaskStatus.model_validate(row))
+
+
+@router.delete("/{task_id}", response_model=ApiEnvelope[dict[str, Any]])
+def delete_finished_task(task_id: str) -> ApiEnvelope[dict[str, Any]]:
+    row = task_repo.get_task(task_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if row["status"] not in {"ready", "failed"}:
+        raise HTTPException(status_code=409, detail="任务处理中，完成后才能删除")
+
+    runs_dir = settings.runs_dir.resolve()
+    task_dir = Path(row["video_path"]).resolve().parent
+    try:
+        task_dir.relative_to(runs_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail="任务文件目录无效，拒绝删除") from exc
+    if task_dir == runs_dir:
+        raise HTTPException(status_code=500, detail="任务文件目录无效，拒绝删除")
+
+    result, _ = task_repo.delete_finished_task(task_id)
+    if result == "not_found":
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if result != "deleted":
+        raise HTTPException(status_code=409, detail="任务处理中，完成后才能删除")
+
+    remove_preview_task_data(task_dir)
+    return ApiEnvelope(result={"task_id": task_id, "deleted": True})
 
 
 @router.get("/{task_id}/detections", response_model=ApiEnvelope[list[dict[str, Any]]])
