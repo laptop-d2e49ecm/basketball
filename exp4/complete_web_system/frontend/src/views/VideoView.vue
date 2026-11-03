@@ -62,6 +62,7 @@ let previewTimer: number | undefined
 let animationFrame = 0
 let requestToken = 0
 let resizeObserver: ResizeObserver | undefined
+let pendingEventTimeMs: number | null = null
 
 const fileSizeLabel = computed(() => selectedFile.value ? formatBytes(selectedFile.value.size) : '')
 const taskPercent = computed(() => Math.round((task.value?.progress || 0) * 100))
@@ -107,6 +108,7 @@ function acceptFile(file: File | undefined) {
     errorText.value = '视频超过 5 GiB 上传上限。'
     return
   }
+  pendingEventTimeMs = null
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
   stopPreviewPolling()
   serverPreviewUrl.value = ''
@@ -427,6 +429,7 @@ function drawOverlay() {
 }
 
 function onVideoReady() {
+  applyPendingEventSeek()
   resizeOverlay()
   if (!resizeObserver && videoWrap.value && typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(resizeOverlay)
@@ -439,16 +442,39 @@ function onTimeChange() {
   void loadDetectionWindow()
 }
 
+function seekToEventTime(video: HTMLVideoElement, timestampMs: number) {
+  const targetSeconds = Math.max(0, timestampMs / 1000)
+  const lastSeekableSecond = Number.isFinite(video.duration)
+    ? Math.max(0, video.duration - 0.05)
+    : targetSeconds
+  video.currentTime = Math.min(targetSeconds, lastSeekableSecond)
+  void video.play().catch(() => undefined)
+}
+
+function applyPendingEventSeek() {
+  const video = videoElement.value
+  if (
+    pendingEventTimeMs === null
+    || !video
+    || video.readyState < HTMLMediaElement.HAVE_METADATA
+  ) return
+
+  const timestampMs = pendingEventTimeMs
+  pendingEventTimeMs = null
+  seekToEventTime(video, timestampMs)
+}
+
 function jumpToEvent(event: CommentaryEvent) {
-  if (!videoElement.value) return
-  videoElement.value.currentTime = event.t_ms / 1000
-  void videoElement.value.play().catch(() => undefined)
+  if (!Number.isFinite(event.t_ms) || event.t_ms < 0) return
+  pendingEventTimeMs = event.t_ms
+  applyPendingEventSeek()
 }
 
 function resetTask() {
   stopSocket()
   stopPolling()
   stopPreviewPolling()
+  pendingEventTimeMs = null
   taskStore.reset()
   errorText.value = ''
   previewStatus.value = 'idle'
@@ -487,6 +513,7 @@ onBeforeUnmount(() => {
   stopSocket()
   stopPolling()
   stopPreviewPolling()
+  pendingEventTimeMs = null
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
   window.cancelAnimationFrame(animationFrame)
   resizeObserver?.disconnect()
@@ -636,12 +663,12 @@ onBeforeUnmount(() => {
           </template>
           <template #extra><span class="timeline-count">{{ commentary.length }} 条</span></template>
           <div v-if="commentary.length" class="timeline-list">
-            <button v-for="(item, index) in commentary" :key="`${item.t_ms}-${index}`" class="timeline-item" type="button" @click="jumpToEvent(item)">
+            <button v-for="(item, index) in commentary" :key="`${item.t_ms}-${index}`" class="timeline-item" type="button" :title="`点击跳转到 ${formatTime(item.t_ms)} 并播放`" :aria-label="`跳转到 ${formatTime(item.t_ms)}：${item.text}`" @click="jumpToEvent(item)">
               <span class="timeline-time">{{ formatTime(item.t_ms) }}</span>
               <span class="timeline-marker"><i></i></span>
               <span class="timeline-copy">
                 <strong>{{ item.text }}</strong>
-                <small>画面观察 · 启发式生成</small>
+                <small>启发式画面观察 · 点击跳转播放</small>
               </span>
             </button>
           </div>
@@ -752,6 +779,7 @@ onBeforeUnmount(() => {
 .timeline-list { max-height: 415px; overflow: auto; }
 .timeline-item { display: grid; width: 100%; grid-template-columns: 45px 16px minmax(0, 1fr); gap: 9px; padding: 12px 1px; border: 0; border-bottom: 1px solid #f0f2f6; background: transparent; text-align: left; cursor: pointer; }
 .timeline-item:hover .timeline-copy strong { color: #b46b3a; }
+.timeline-item:focus-visible { outline: 2px solid #e79155; outline-offset: -2px; border-radius: 6px; }
 .timeline-time { padding-top: 1px; color: #b47a50; font: 10px 'DM Mono', monospace; }
 .timeline-marker { position: relative; display: flex; justify-content: center; }
 .timeline-marker::before { position: absolute; top: 0; bottom: -13px; width: 1px; background: #e9edf2; content: ''; }
