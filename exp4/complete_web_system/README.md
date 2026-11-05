@@ -1,68 +1,71 @@
 # 篮球赛事视频分析完整交接包
 
-本目录收录当前已集成的前后端程序、模型、样例、运行脚本和测试记录，供组员直接下载、运行和继续开发。
+本目录为当前第三版集成程序，包含前端、配套后端、三个模型、样例和一键启动脚本。仓库默认分支 `master` 使用此版本，固定版本标签为 `frontend-v3.0.0`。
 
-当前目录对应前端第二版（v2）。第一版保留在 Git 标签 `frontend-v1.0.0`；第二版通过独立分支和标签发布，不覆盖第一版。
+## 从这里运行
 
-## 包含内容
+从仓库根目录进入 `exp4/complete_web_system/`，或下载旁边的 `complete_web_system.zip` 后解压。`exp4/frontend/` 和 `exp4/backend/` 保留同学早期模块源码，当前完整应用请运行本目录。
 
-- backend/：FastAPI 服务、视频任务 Worker、图像检测/文本分类/图文匹配 API，以及后端测试。
-- frontend/：Vue 前端、单元测试和响应式页面验收用例。
-- backend/weights/ 与 backend/app/ml/：视频球员检测模型、ONNX 图像检测模型和文本分类模型。
-- samples/：可直接上传的视频、图片及解说文本样例。
-- backend/postman_collection.json：三个演示 API 的 Postman 请求集合。
-- start_project.bat / stop_project.bat：一键启动和停止本地 API、Worker、前端。
-- tests/VERIFIED_TESTS.md：已通过的构建和测试记录。
-- docs/：实验四计划与架构设计参考。
+首次安装需要 Python 3.11 或 3.12、Node.js 20.19+（或 22.12+）和 pnpm。在本目录打开 PowerShell：
 
-## 首次安装（Windows）
+```powershell
+Set-Location .\backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+Set-Location ..\frontend
+pnpm install
+```
 
-要求：Python 3.11 或 3.12、Node.js 20.19+（或 22.12+）和 pnpm。
+安装完成后双击 **start_project_v3.bat**。原来的 `start_project.bat` 也会进入当前工作台。脚本在后台启动 API、Worker 和前端，并打开 `http://127.0.0.1:5173/video-v3`；停止服务使用 `stop_project.bat`。API 文档在 `http://127.0.0.1:8000/docs`。
 
-在本目录打开 PowerShell，依次运行以下命令：
+默认独立 Worker 模式无需 Redis。视频推理在可用时选择 CUDA，否则使用 CPU；ONNX 图片检测使用 CPU。切换代码版本前先停止旧服务，避免旧 API 占用 8000 端口。
 
-    Set-Location .\backend
-    py -3.12 -m venv .venv
-    .\.venv\Scripts\python.exe -m pip install --upgrade pip
-    .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-    Set-Location ..\frontend
-    pnpm install
+## 第三版功能
 
-如果电脑使用的 Python 命令不是 py -3.12，可将它换成已安装的 Python 3.11 或 3.12 命令。
+- 默认首页与 `/video` 跳转到 `/video-v3` 视频分析工作台。
+- 选择 MP4 后出现“正在分析中，请稍等”，进度条由 WebSocket / REST 的任务进度更新，结果载入后关闭等待界面；上传或分析失败会显示原因。
+- 视频画面占较大宽度，关键事件在右侧；人数变化图跨两列。点击事件定位视频并保持暂停。
+- 比赛画面的“历史任务”按钮可打开最近任务；检测、文本和图文页面也可通过导航返回最近任务。
+- “清除当前任务”清空当前预览、事件、检测框和图表，随后可重新上传。此操作保留历史记录，也不会取消已提交到后端的分析任务。
+- 最近任务支持打开历史分析及删除已完成、失败的任务；处理中的任务禁止删除。
+- `/detect` 球员图片检测，`/text` 解说文本分类，`/match` 图片与文本的篮球相关性演示；结果图片可点击放大。
+- 上传时可填写视频名称，由后端保存；视频默认最大 5 GiB，图片最大 10 MB。
 
-## 启动和停止
+视频描述来自人数变化、聚集和群体移动等启发式事件，不识别投篮、进球、姓名或比分。图文模块汇总“图片检出球员”和“文本属于篮球内容”两类证据，不验证图片动作与解说动作一致。
 
-完成首次安装后，在本目录双击 start_project.bat，或在 PowerShell 运行：
+新上传的视频直接使用浏览器本地预览，其播放能力取决于编码；历史任务通过后端兼容预览接口播放。模型推理始终读取原视频。
 
-    .\start_project.ps1
+## 代码和配套文件
 
-脚本会在后台启动 API、视频 Worker 和前端，并打开浏览器。页面地址为 http://127.0.0.1:5173，后端接口文档为 http://127.0.0.1:8000/docs。需要停止时运行 stop_project.bat。
+- `frontend/src/`：Vue 路由、公共导航及图片/文本/图文页面。
+- `frontend/src/views/VideoV3View.vue`：工作台入口，加载 `frontend/public/前端第三版.html`。**public 里的文件是实际运行页面**。
+- `backend/`：FastAPI、任务存储、视频 Worker、模型及演示 API；后端支持任务名称和删除，更新时请配套使用。
+- `samples/`：图片、文本和视频样例；`demo_video.mp4` 为 36.04 秒基线，`demo_video_short.mp4` 用于快速检查。
+- `backend/postman_collection.json`：接口请求集合。
+- `tests/VERIFIED_TESTS.md`：本次验证记录和复现说明。
+- `reports/`：视频基线及真实 API/异步任务/浏览器显示延迟记录。
 
-默认使用独立 Worker，不需要先安装 Redis。视频模型会自动选择 CUDA GPU；没有可用 CUDA 时回退到 CPU。ONNX 图像演示接口使用 CPU Provider。
+## 检查命令
 
-## 主要功能
+```powershell
+Set-Location .\backend
+.\.venv\Scripts\python.exe -m pytest -q
+Set-Location ..\frontend
+pnpm test:unit
+pnpm build
+pnpm exec playwright install
+pnpm test:e2e
+```
 
-- /video：上传篮球视频，查看分析进度、检测结果和带检测框的视频预览。
-- /detect：球员图片检测，支持批量图片任务。
-- /text：篮球解说文本分类。
-- /match：单张图片与一段解说文本匹配。
-- REST API 与任务 WebSocket：接口说明可从 /docs 查看。
+浏览器测试使用固定 API 响应，默认 Chromium 项目通过本机 Microsoft Edge 运行；Firefox / WebKit 使用 Playwright 浏览器。真实模型测试与界面交互测试分开记录。
 
-第二版界面调整：左侧导航固定，内容区域独立滚动；解说时间轴点击后跳转并暂停视频；最近任务支持删除已完成或失败的任务；图文匹配结果图片支持点击放大预览。最近任务删除需要运行本目录的第二版后端，不能只替换前端文件。
+可选 Celery + Redis 模式的配置见 [后端说明](backend/README.md)。一键脚本启动的是默认独立 Worker。
 
-单个视频默认最大 5 GiB；抽帧间隔由 BASKETBALL_FRAME_STEP 控制，默认每 2 帧处理 1 帧。视频时长和分辨率会影响总处理时间。
+## 使用之前的版本
 
-## 本地验证命令
+第一版标签 `frontend-v1.0.0`、第二版标签 `frontend-v2.0.0` 保持原提交，可从 GitHub 的 Tags 中查看、下载。建议解压到不同目录后安装依赖、启动；切换运行版本前先停止正在运行的服务。
 
-    Set-Location .\backend
-    .\.venv\Scripts\python.exe -m pytest -q
-
-    Set-Location ..\frontend
-    pnpm test:unit
-    pnpm build
-    pnpm test:e2e
-
-可按需复制 backend/.env.example 为 backend/.env 调整 Worker、抽帧间隔、上传大小或设备选择。默认值已经可以直接启动。
-## 演示视频与性能记录
-
-samples/demo_video.mp4 是 36.04 秒的基线视频；samples/demo_video_short.mp4 可用于快速检查上传流程。视频主线实测数据见 reports/VIDEO_BASELINE.md。
+```powershell
+git archive --format=zip --output=frontend-v1.zip frontend-v1.0.0:exp4/complete_web_system
+git archive --format=zip --output=frontend-v2.zip frontend-v2.0.0:exp4/complete_web_system
+```

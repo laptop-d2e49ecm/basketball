@@ -1,4 +1,6 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿param([switch]$Version3)
+
+$ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir = Join-Path $Root 'backend'
@@ -9,6 +11,7 @@ $ManifestPath = Join-Path $RuntimeDir 'services.json'
 $PythonExe = Join-Path $BackendDir '.venv\Scripts\python.exe'
 $ViteCli = Join-Path $FrontendDir 'node_modules\vite\bin\vite.js'
 $FrontendUrl = 'http://127.0.0.1:5173/'
+if ($Version3) { $FrontendUrl = 'http://127.0.0.1:5173/video-v3' }
 $ApiHealthUrl = 'http://127.0.0.1:8000/api/v1/health'
 
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null

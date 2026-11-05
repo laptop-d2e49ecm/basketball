@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 const pages = [
-  { path: '/video', title: '视频赛事解说' },
+  { path: '/video-v3', title: '视频解说分析台' },
   { path: '/detect', title: '球员图像检测', layout: 'stack-at-md', xlShare: 9 / 24 },
   { path: '/text', title: '解说文本分类', layout: 'split-at-md', xlShare: 12 / 24 },
   { path: '/match', title: '图文匹配', layout: 'stack-at-md', xlShare: 10 / 24 },
@@ -39,10 +39,32 @@ for (const pageInfo of pages) {
     test(`${pageInfo.title} fits the ${viewport.name} viewport`, async ({ page }) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height })
       await page.goto(pageInfo.path)
-      await expect(page.getByRole('heading', { level: 1 })).toHaveText(pageInfo.title)
+      const content = pageInfo.path === '/video-v3' ? page.frameLocator('iframe') : page
+      await expect(content.getByRole('heading', { level: 1 })).toHaveText(pageInfo.title)
 
       const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
       expect(documentWidth, 'page should not scroll horizontally').toBeLessThanOrEqual(viewport.width)
+
+      if (pageInfo.path === '/video-v3') {
+        const innerWidth = await content.locator('html').evaluate(el => el.scrollWidth)
+        expect(innerWidth).toBeLessThanOrEqual(viewport.width)
+        const video = await content.locator('.video-card').boundingBox()
+        const events = await content.locator('.events-card').boundingBox()
+        const chart = await content.locator('.chart-card').boundingBox()
+        expect(video).not.toBeNull()
+        expect(events).not.toBeNull()
+        expect(chart).not.toBeNull()
+        if (viewport.name === 'xl') expect(video!.width).toBeGreaterThan(events!.width * 1.4)
+        else expect(Math.abs(video!.width - events!.width)).toBeLessThan(1)
+        expect(Math.abs(chart!.x - video!.x)).toBeLessThan(1)
+        expect(Math.abs(chart!.x + chart!.width - events!.x - events!.width)).toBeLessThan(1)
+        expect(chart!.y).toBeGreaterThanOrEqual(events!.y + events!.height)
+        const blank = await content.locator('.video-card').evaluate(el =>
+          el.getBoundingClientRect().bottom - el.lastElementChild!.getBoundingClientRect().bottom,
+        )
+        expect(blank).toBeLessThanOrEqual(2)
+        return
+      }
 
       if (!pageInfo.layout) return
 

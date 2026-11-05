@@ -1,0 +1,435 @@
+{
+  "date": "2026-11-05",
+  "scope": "Release bundle UI tests, API and WebSocket mocks; 36 layout + 9 navigation + 15 upload/progress/error/clear interactions. Not a three-browser real-inference benchmark.",
+  "firefox_environment": "Temporary Playwright Firefox 157 profile with MOZ_DISABLE_CONTENT_SANDBOX=1 and software rendering due local child-process crashes; system settings unchanged.",
+  "stats": {
+    "startTime": "2026-11-05T15:14:55.870Z",
+    "duration": 62415.674999999996,
+    "expected": 60,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "upload opens progress immediately, follows real updates, then opens results",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 2955
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "polling updates the mobile waiting screen when WebSocket is unavailable",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 3199
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "upload failure is visible and the same file can be uploaded again",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 1374
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "analysis failures show the actual error instead of an endless waiting screen",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 1483
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "clearing a dismissed task ignores its late results and allows a new upload",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 1267
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "upload opens progress immediately, follows real updates, then opens results",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 2247
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "polling updates the mobile waiting screen when WebSocket is unavailable",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 3036
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "upload failure is visible and the same file can be uploaded again",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1287
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "analysis failures show the actual error instead of an endless waiting screen",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1406
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "clearing a dismissed task ignores its late results and allows a new upload",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1404
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "upload opens progress immediately, follows real updates, then opens results",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 5031
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "polling updates the mobile waiting screen when WebSocket is unavailable",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 3605
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "upload failure is visible and the same file can be uploaded again",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 1615
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "analysis failures show the actual error instead of an endless waiting screen",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 1545
+    },
+    {
+      "file": "analysis-progress.spec.ts",
+      "title": "clearing a dismissed task ignores its late results and allows a new upload",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 1778
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "recent tasks remains reachable after opening /detect",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 3889
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "recent tasks remains reachable after opening /text",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 2086
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "recent tasks remains reachable after opening /match",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 2397
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "recent tasks remains reachable after opening /detect",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 2847
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "recent tasks remains reachable after opening /text",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 2703
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "recent tasks remains reachable after opening /match",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 2821
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "recent tasks remains reachable after opening /detect",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 6776
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "recent tasks remains reachable after opening /text",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 2903
+    },
+    {
+      "file": "navigation.spec.ts",
+      "title": "recent tasks remains reachable after opening /match",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 2977
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "视频解说分析台 fits the xs viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 1121
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "视频解说分析台 fits the md viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 1145
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "视频解说分析台 fits the xl viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 990
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "球员图像检测 fits the xs viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 1000
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "球员图像检测 fits the md viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 919
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "球员图像检测 fits the xl viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 935
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "解说文本分类 fits the xs viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 794
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "解说文本分类 fits the md viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 842
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "解说文本分类 fits the xl viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 878
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "图文匹配 fits the xs viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 846
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "图文匹配 fits the md viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 906
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "图文匹配 fits the xl viewport",
+      "browser": "Edge",
+      "status": "passed",
+      "duration_ms": 977
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "视频解说分析台 fits the xs viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1078
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "视频解说分析台 fits the md viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1163
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "视频解说分析台 fits the xl viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1296
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "球员图像检测 fits the xs viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1088
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "球员图像检测 fits the md viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1153
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "球员图像检测 fits the xl viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1076
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "解说文本分类 fits the xs viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1111
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "解说文本分类 fits the md viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 1075
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "解说文本分类 fits the xl viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 984
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "图文匹配 fits the xs viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 923
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "图文匹配 fits the md viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 931
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "图文匹配 fits the xl viewport",
+      "browser": "WebKit",
+      "status": "passed",
+      "duration_ms": 882
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "视频解说分析台 fits the xs viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 1157
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "视频解说分析台 fits the md viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 871
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "视频解说分析台 fits the xl viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 889
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "球员图像检测 fits the xs viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 830
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "球员图像检测 fits the md viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 828
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "球员图像检测 fits the xl viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 804
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "解说文本分类 fits the xs viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 1743
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "解说文本分类 fits the md viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 899
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "解说文本分类 fits the xl viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 834
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "图文匹配 fits the xs viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 838
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "图文匹配 fits the md viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 800
+    },
+    {
+      "file": "responsive.spec.ts",
+      "title": "图文匹配 fits the xl viewport",
+      "browser": "Firefox",
+      "status": "passed",
+      "duration_ms": 817
+    }
+  ]
+}

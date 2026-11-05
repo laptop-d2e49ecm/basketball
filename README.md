@@ -1,5 +1,11 @@
 # 篮球 AI 赛事解说员 —— 课程项目总仓库
 
+## 当前 Web 应用（第三版）
+
+**最新版入口：[exp4/complete_web_system](exp4/complete_web_system/README.md)**。前端、配套后端、模型和样例都在此目录；下载后按说明安装依赖，双击 `start_project_v3.bat`。旁边的 [complete_web_system.zip](exp4/complete_web_system.zip) 与该目录同步。
+
+默认 `master` 已更新为第三版，固定标签为 `frontend-v3.0.0`。第一版 `frontend-v1.0.0`、第二版 `frontend-v2.0.0` 保留原提交。`exp4/frontend/`、`exp4/backend/` 是早期模块源码，当前完整系统请使用上述目录。
+
 **最终成品**：上传一段篮球比赛视频 → 系统看懂画面（谁在哪儿、发生了什么动作）→ 用中文实时生成逐事件解说。
 
 课程 5 个实验串成这条流水线：**数据（实验1）→ 球员检测（实验2）→ 模型优化（实验3）→ Web 系统（实验4）→ 大模型 Agent 解说（实验5）**。

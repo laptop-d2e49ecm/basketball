@@ -45,6 +45,7 @@ def _load_jsonl(path: Path, *, t_start: float | None = None, t_end: float | None
 @router.post("", response_model=ApiEnvelope[TaskCreated], status_code=status.HTTP_202_ACCEPTED)
 def create_task(
     file: UploadFile = File(...),
+    video_name: str | None = Form(default=None),
     team1: str | None = Form(default=None),
     team2: str | None = Form(default=None),
     score1: str | None = Form(default=None),
@@ -53,6 +54,7 @@ def create_task(
     original_name = Path(file.filename or "").name
     if Path(original_name).suffix.lower() != ".mp4":
         raise HTTPException(status_code=400, detail="MVP 目前仅接受 MP4 视频")
+    display_name = (video_name or "").strip()[:120] or original_name
 
     task_id = uuid.uuid4().hex
     task_dir = settings.runs_dir / task_id
@@ -80,7 +82,7 @@ def create_task(
         }
         task_repo.create_task(
             task_id=task_id,
-            video_name=original_name,
+            video_name=display_name,
             video_path=str(video_path.resolve()),
             metadata=metadata,
         )

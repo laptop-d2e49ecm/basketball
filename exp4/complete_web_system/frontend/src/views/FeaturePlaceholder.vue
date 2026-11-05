@@ -20,8 +20,8 @@ const subtitle = computed(() => String(route.meta.subtitle || '此模块将在�
         <span class="note-dot"></span>
         这是视频解说主流程之外的独立页面，不会阻塞视频任务。
       </div>
-      <a-button type="link" class="back-link" @click="router.push('/video')">
-        返回视频解说 <ArrowRightOutlined />
+      <a-button type="link" class="back-link" @click="router.push('/video-v3')">
+        返回视频分析工作台 <ArrowRightOutlined />
       </a-button>
     </a-card>
   </div>

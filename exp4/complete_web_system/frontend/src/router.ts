@@ -2,15 +2,20 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import DetectView from './views/DetectView.vue'
 import MatchView from './views/MatchView.vue'
 import TextView from './views/TextView.vue'
-import VideoView from './views/VideoView.vue'
+import VideoV3View from './views/VideoV3View.vue'
 
 const routes: RouteRecordRaw[] = [
-  { path: '/', redirect: '/video' },
+  { path: '/', redirect: '/video-v3' },
   {
     path: '/video',
     name: 'video',
-    component: VideoView,
-    meta: { title: '视频赛事解说', subtitle: '上传比赛视频，生成球员检测结果与时间轴解说。' },
+    redirect: '/video-v3',
+  },
+  {
+    path: '/video-v3',
+    name: 'video-v3',
+    component: VideoV3View,
+    meta: { title: '视频分析工作台', subtitle: '事件时间轴、人数变化与解说同步呈现。' },
   },
   {
     path: '/detect',

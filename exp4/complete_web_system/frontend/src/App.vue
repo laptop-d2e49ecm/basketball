@@ -7,7 +7,8 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   PictureOutlined,
-  PlayCircleOutlined,
+  BarChartOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
@@ -15,7 +16,8 @@ const router = useRouter()
 const collapsed = ref(false)
 
 const navigation = [
-  { key: '/video', label: '视频赛事解说', icon: PlayCircleOutlined },
+  { key: '/video-v3', label: '视频分析工作台', icon: BarChartOutlined },
+  { key: '/video-v3?view=recent', label: '最近任务', icon: HistoryOutlined },
   { key: '/detect', label: '球员图像检测', icon: PictureOutlined },
   { key: '/text', label: '解说文本分类', icon: FileTextOutlined },
   { key: '/match', label: '图文匹配', icon: LinkOutlined },
@@ -34,7 +36,8 @@ function handleMenuClick({ key }: { key: string | number }) {
 </script>
 
 <template>
-  <a-layout class="app-shell" :class="{ 'nav-collapsed': collapsed }">
+  <RouterView v-if="route.path === '/video-v3'" />
+  <a-layout v-else class="app-shell" :class="{ 'nav-collapsed': collapsed }">
     <a-layout-sider v-model:collapsed="collapsed" :width="244" :collapsed-width="76" :trigger="null" class="side-panel">
       <div class="brand-lockup">
         <div class="brand-mark"><span></span><span></span><span></span></div>
@@ -54,12 +57,11 @@ function handleMenuClick({ key }: { key: string | number }) {
         <a-menu-item v-for="item in navigation" :key="item.key">
           <template #icon><component :is="item.icon" /></template>
           <span>{{ item.label }}</span>
-          <span v-if="item.key === '/video' && !collapsed" class="menu-live-dot"></span>
+          <span v-if="item.key === '/video-v3' && !collapsed" class="menu-live-dot"></span>
         </a-menu-item>
       </a-menu>
 
       <div class="sider-bottom">
-        <div class="sider-status"><i></i><span v-if="!collapsed">本地开发环境</span></div>
         <button class="collapse-button" type="button" @click="collapsed = !collapsed">
           <MenuUnfoldOutlined v-if="collapsed" />
           <MenuFoldOutlined v-else />

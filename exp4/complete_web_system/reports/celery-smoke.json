@@ -1,0 +1,56 @@
+{
+  "utc": "2026-11-05T09:13:38Z",
+  "broker_version": "5.0.14.1",
+  "celery_version": "5.6.3",
+  "sample": "demo_video.mp4",
+  "health": {
+    "status": "ok",
+    "detector_loaded": true,
+    "text_clf_loaded": true,
+    "backend_mode": "celery",
+    "version": "0.2.0",
+    "video_frame_step": 2,
+    "image_detector_loaded": true,
+    "text_classifier_loaded": true
+  },
+  "http_upload": 202,
+  "states": [
+    "pending",
+    "running",
+    "ready"
+  ],
+  "created": {
+    "task_id": "2944941d0c514cf69416786bec48eb38",
+    "status": "pending",
+    "frame_step": 2
+  },
+  "final": {
+    "task_id": "2944941d0c514cf69416786bec48eb38",
+    "video_name": "demo_video.mp4",
+    "metadata": {
+      "team1": null,
+      "team2": null,
+      "score1": null,
+      "score2": null,
+      "frame_step": 2
+    },
+    "status": "ready",
+    "stage": "ready",
+    "progress": 1.0,
+    "error": null,
+    "created_at": "2026-11-05T09:13:33.225586Z",
+    "finished_at": "2026-11-05T09:13:38.039093Z",
+    "frames_total": 25,
+    "frames_done": 25,
+    "avg_infer_ms": 41.47760800002288,
+    "total_seconds": 3.7875389000000723
+  },
+  "frame_records": 25,
+  "event_records": 1,
+  "elapsed_submit_to_ready_s": 4.986,
+  "consumer_log": [
+    "[2026-11-05 17:13:33,554: INFO/MainProcess] Task worker.process_video_task[e8cf1084-4821-4d88-9746-d2f4ff65ed6f] received",
+    "[2026-11-05 17:13:38,048: INFO/MainProcess] Task worker.process_video_task[e8cf1084-4821-4d88-9746-d2f4ff65ed6f] succeeded in 4.483999999999469s: None"
+  ],
+  "scope": "one local task, Windows solo pool, CPU, stride 2"
+}
