@@ -16,7 +16,7 @@ Set-Location ..\frontend
 pnpm install
 ```
 
-安装完成后双击 **start_project_v3.bat**。原来的 `start_project.bat` 也会进入当前工作台。脚本在后台启动 API、Worker 和前端，并打开 `http://127.0.0.1:5173/video-v3`；停止服务使用 `stop_project.bat`。API 文档在 `http://127.0.0.1:8000/docs`。
+安装完成后双击 **start_project_v3.bat**。本目录只保留这一个启动入口，以及用于关闭服务的 **stop_project.bat**；两个 BAT 已内置 PowerShell 逻辑，不依赖单独的 PS1 文件。脚本在后台启动 API、Worker 和前端，并打开 `http://127.0.0.1:5173/video-v3`；停止服务使用 `stop_project.bat`。API 文档在 `http://127.0.0.1:8000/docs`。
 
 默认独立 Worker 模式无需 Redis。视频推理在可用时选择 CUDA，否则使用 CPU；ONNX 图片检测使用 CPU。切换代码版本前先停止旧服务，避免旧 API 占用 8000 端口。
 
