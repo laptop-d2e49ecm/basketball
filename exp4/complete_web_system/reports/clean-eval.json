@@ -1,0 +1,23 @@
+{
+  "purpose": "实验4 正式精度口径复测：按 data_clean.yaml（实验3 勘误 2026-10-30 确立的对外口径）重测两个部署权重，并复现旧口径数字以验证方法论一致性",
+  "date": "2026-11-07",
+  "machine": "AMD Ryzen 7 6800H, CPU only",
+  "framework": "ultralytics 8.4.176 + onnxruntime 1.31.0 + torch 2.14.0+cpu, imgsz=640, split=test, 默认 val 阈值",
+  "splits": {
+    "clean": "data/splits/yolo/data_clean.yaml test=190 原始帧（无 _aug0 副本）",
+    "dirty": "data/splits/yolo/data.yaml test=380 帧（含 190 张 _aug0 错位标注副本，历史口径，仅用于复现对照）"
+  },
+  "results": {
+    "best.pt": {
+      "clean_test190": { "mAP50": 0.9868, "mAP50_95": 0.7339, "precision": 0.9839, "recall": 0.9621 },
+      "dirty_test380": { "mAP50": 0.4185, "mAP50_95": 0.2451, "precision": 0.59, "recall": 0.5797 }
+    },
+    "a2_int8_val346.onnx": {
+      "clean_test190": { "mAP50": 0.9882, "mAP50_95": 0.7175, "precision": 0.9816, "recall": 0.9637 },
+      "dirty_test380": { "mAP50": 0.4201, "mAP50_95": 0.2458, "precision": 0.5881, "recall": 0.5774 }
+    }
+  },
+  "validation": "脏口径复现值 0.4185/0.4201 与实验2/3 历史记录 0.419/0.420 一致；best.pt 干净口径 0.9868 与实验3 勘误记录的 0.987 一致，方法论可信。",
+  "conclusion": "对外报告一律使用干净口径：best.pt test mAP50=0.987、a2_int8_val346.onnx test mAP50=0.988（INT8 量化在干净口径下无损）。旧 0.418/0.420 系含 _aug0 错位标注副本的历史口径，仅作对照保留。",
+  "repro": "D:\\Projects\\python\\basketball\\.venv\\Scripts\\python.exe，ultralytics YOLO(<weights>).val(data=<yaml>, split='test', imgsz=640, device='cpu')"
+}
