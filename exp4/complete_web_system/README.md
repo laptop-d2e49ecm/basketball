@@ -4,7 +4,7 @@
 
 ## 从这里运行
 
-从仓库根目录进入 `exp4/complete_web_system/`，或下载旁边的 `complete_web_system.zip` 后解压。`exp4/frontend/` 和 `exp4/backend/` 保留同学早期模块源码，当前完整应用请运行本目录。
+从仓库根目录进入 `exp4/complete_web_system/`，或下载旁边的 `complete_web_system.zip` 后解压。`exp4/frontend/` 和 `exp4/backend/` 保留早期模块源码，当前完整应用请运行本目录。
 
 首次安装需要 Python 3.11 或 3.12、Node.js 20.19+（或 22.12+）和 pnpm。在本目录打开 PowerShell：
 
