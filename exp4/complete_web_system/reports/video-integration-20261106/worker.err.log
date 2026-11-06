@@ -1,0 +1,6 @@
+2026-11-06 14:54:46,045 INFO Loading model from D:\study\studymore\ai全栈\.runtime\basketball-remote\exp4\complete_web_system\backend\weights\best.pt
+2026-11-06 14:54:46,079 INFO Worker is ready; polling for tasks
+2026-11-06 14:54:52,138 INFO Processing task 6f3395f3653842878d49243e587c06a0
+2026-11-06 14:54:52,957 INFO Using inference device cpu for task 6f3395f3653842878d49243e587c06a0
+2026-11-06 15:21:05,415 INFO Processing task f8d9cf041962467ab641743edf95a849
+2026-11-06 15:21:05,456 INFO Using inference device cpu for task f8d9cf041962467ab641743edf95a849

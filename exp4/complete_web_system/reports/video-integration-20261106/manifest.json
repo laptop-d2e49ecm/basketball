@@ -1,0 +1,96 @@
+{
+  "source_commit": "cec6547bd893fe96a38414e590ef3699b26f82bb",
+  "task_id": "f8d9cf041962467ab641743edf95a849",
+  "files": [
+    {
+      "file": "01-上传前.png",
+      "bytes": 215733,
+      "sha256": "aac5dc7cd6b053ad6aac40c652c8f5089b126c5098de39479eedd96784d7a9e2"
+    },
+    {
+      "file": "02-真实分析进度.png",
+      "bytes": 158830,
+      "sha256": "691cf6365161a824906c4dc877823aac6eac003fdbc411a311dc467cc0847f47"
+    },
+    {
+      "file": "03-分析完成与检测框.png",
+      "bytes": 322660,
+      "sha256": "5c038b58f78a0fb9588718dad9daf07be1bdb4752c58c20ed38a43ed1ea4c08f"
+    },
+    {
+      "file": "04-点击事件后保持暂停.png",
+      "bytes": 392277,
+      "sha256": "f169197f64efae8320a7ade2251cc052a5b9d93585460fc6dfd6a3a09dbabfb7"
+    },
+    {
+      "file": "05-完整视频播放结束.png",
+      "bytes": 358622,
+      "sha256": "067433967bd1bea6e769dfb080ba9f14951c778e1344a37057b3e26710504cc4"
+    },
+    {
+      "file": "06-历史任务记录.png",
+      "bytes": 57113,
+      "sha256": "3d6f5a2674b956694f6ffa472e66da93d713234308c3132378427f2031dd48cb"
+    },
+    {
+      "file": "07-历史任务回放.png",
+      "bytes": 391853,
+      "sha256": "1d20b464b36ff749d4e7af175de2618371cf5ab168c534505b55853800e70956"
+    },
+    {
+      "file": "08-清除当前任务.png",
+      "bytes": 214253,
+      "sha256": "4dc78d74b57590ed72327ca571b0cae4273e30ecef2a6238b200692ef1d23d68"
+    },
+    {
+      "file": "api.err.log",
+      "bytes": 443,
+      "sha256": "2709a009c0e24e3a15d0d3534a3e29dc1a48dcb0f83b31aa45416e27a411e464"
+    },
+    {
+      "file": "api.out.log",
+      "bytes": 8273,
+      "sha256": "37670f91000c28a8821deb0ddbe9d14cf778f5947b26edc9c647928a0ce63efe"
+    },
+    {
+      "file": "browser-trace.zip",
+      "bytes": 29949,
+      "sha256": "040bd451d216f3a45ca14f17378ec858ac81cd2ccf468e396ba89637f6b8160c"
+    },
+    {
+      "file": "detections.json",
+      "bytes": 364035,
+      "sha256": "999a76fb4b72a2500863d60a5e92408c2dca0e5c2f94b5db69e6bf414843e1e7"
+    },
+    {
+      "file": "history-playback-probe.json",
+      "bytes": 4345,
+      "sha256": "e2de28c9f7a266c645fefe216652b05a8903f3ae2fb54de86d52c6aa1fe41beb"
+    },
+    {
+      "file": "integration-result.json",
+      "bytes": 1907160,
+      "sha256": "466a53137b4bdf7c0197980f8f3d8cb08c56719046a1087a9872a9094bd74fc3"
+    },
+    {
+      "file": "worker.err.log",
+      "bytes": 574,
+      "sha256": "2f84359f0b08ca23cab5267ff977a8e5647509009a09073cd2403cc4da33ef92"
+    },
+    {
+      "file": "worker.out.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "执行脚本.mjs",
+      "bytes": 14274,
+      "sha256": "6fe7aaec7cc94ce5c352d9f6870c969686b5708db2b609ff49ccd5d91d9315e2"
+    },
+    {
+      "file": "README.md",
+      "bytes": 5619,
+      "sha256": "cce7cbb9aef40e33a1e646e8c637e4b7d3969b013da21b86f302e597e3f230e1"
+    }
+  ]
+}

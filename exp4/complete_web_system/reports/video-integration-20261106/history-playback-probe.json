@@ -1,0 +1,257 @@
+[
+  {
+    "time": 1793949453550,
+    "t": 0.0127,
+    "duration": 36.04,
+    "paused": false,
+    "ended": false,
+    "ready": 4,
+    "network": 1,
+    "quality": {
+      "total": 4,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "name": "play",
+        "at": 1793949453542,
+        "t": 0.0048,
+        "ready": 4
+      },
+      {
+        "name": "playing",
+        "at": 1793949453543,
+        "t": 0.0049,
+        "ready": 4
+      }
+    ]
+  },
+  {
+    "time": 1793949458627,
+    "t": 5.0888,
+    "duration": 36.04,
+    "paused": false,
+    "ended": false,
+    "ready": 4,
+    "network": 1,
+    "quality": {
+      "total": 132,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "name": "play",
+        "at": 1793949453542,
+        "t": 0.0048,
+        "ready": 4
+      },
+      {
+        "name": "playing",
+        "at": 1793949453543,
+        "t": 0.0049,
+        "ready": 4
+      }
+    ]
+  },
+  {
+    "time": 1793949463652,
+    "t": 10.1142,
+    "duration": 36.04,
+    "paused": false,
+    "ended": false,
+    "ready": 4,
+    "network": 1,
+    "quality": {
+      "total": 257,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "name": "play",
+        "at": 1793949453542,
+        "t": 0.0048,
+        "ready": 4
+      },
+      {
+        "name": "playing",
+        "at": 1793949453543,
+        "t": 0.0049,
+        "ready": 4
+      }
+    ]
+  },
+  {
+    "time": 1793949468673,
+    "t": 15.1348,
+    "duration": 36.04,
+    "paused": false,
+    "ended": false,
+    "ready": 4,
+    "network": 1,
+    "quality": {
+      "total": 382,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "name": "play",
+        "at": 1793949453542,
+        "t": 0.0048,
+        "ready": 4
+      },
+      {
+        "name": "playing",
+        "at": 1793949453543,
+        "t": 0.0049,
+        "ready": 4
+      }
+    ]
+  },
+  {
+    "time": 1793949473697,
+    "t": 20.1593,
+    "duration": 36.04,
+    "paused": false,
+    "ended": false,
+    "ready": 4,
+    "network": 1,
+    "quality": {
+      "total": 508,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "name": "play",
+        "at": 1793949453542,
+        "t": 0.0048,
+        "ready": 4
+      },
+      {
+        "name": "playing",
+        "at": 1793949453543,
+        "t": 0.0049,
+        "ready": 4
+      }
+    ]
+  },
+  {
+    "time": 1793949478717,
+    "t": 25.1792,
+    "duration": 36.04,
+    "paused": false,
+    "ended": false,
+    "ready": 4,
+    "network": 1,
+    "quality": {
+      "total": 634,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "name": "play",
+        "at": 1793949453542,
+        "t": 0.0048,
+        "ready": 4
+      },
+      {
+        "name": "playing",
+        "at": 1793949453543,
+        "t": 0.0049,
+        "ready": 4
+      }
+    ]
+  },
+  {
+    "time": 1793949483732,
+    "t": 30.1944,
+    "duration": 36.04,
+    "paused": false,
+    "ended": false,
+    "ready": 4,
+    "network": 1,
+    "quality": {
+      "total": 759,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "name": "play",
+        "at": 1793949453542,
+        "t": 0.0048,
+        "ready": 4
+      },
+      {
+        "name": "playing",
+        "at": 1793949453543,
+        "t": 0.0049,
+        "ready": 4
+      }
+    ]
+  },
+  {
+    "time": 1793949488747,
+    "t": 35.2091,
+    "duration": 36.04,
+    "paused": false,
+    "ended": false,
+    "ready": 4,
+    "network": 1,
+    "quality": {
+      "total": 884,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "name": "play",
+        "at": 1793949453542,
+        "t": 0.0048,
+        "ready": 4
+      },
+      {
+        "name": "playing",
+        "at": 1793949453543,
+        "t": 0.0049,
+        "ready": 4
+      }
+    ]
+  },
+  {
+    "time": 1793949493766,
+    "t": 36.04,
+    "duration": 36.04,
+    "paused": true,
+    "ended": true,
+    "ready": 4,
+    "network": 1,
+    "quality": {
+      "total": 901,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "name": "play",
+        "at": 1793949453542,
+        "t": 0.0048,
+        "ready": 4
+      },
+      {
+        "name": "playing",
+        "at": 1793949453543,
+        "t": 0.0049,
+        "ready": 4
+      },
+      {
+        "name": "pause",
+        "at": 1793949489590,
+        "t": 36.04,
+        "ready": 4
+      },
+      {
+        "name": "ended",
+        "at": 1793949489590,
+        "t": 36.04,
+        "ready": 4
+      }
+    ]
+  }
+]

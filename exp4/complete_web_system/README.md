@@ -44,6 +44,7 @@ pnpm install
 - `backend/postman_collection.json`：接口请求集合。
 - `tests/VERIFIED_TESTS.md`：本次验证记录和复现说明。
 - `reports/`：视频基线及真实 API/异步任务/浏览器显示延迟记录。
+- [Edge 真实视频完整流程联调](reports/video-integration-20261106/README.md)：13 项检查通过，含原始 JSON、截图、服务日志和执行追踪；独立于 60 项模拟接口界面测试。
 
 ## 检查命令
 
