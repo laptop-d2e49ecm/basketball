@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.agent import router as agent_router
 from app.api.detect import router as detect_router
 from app.api.match import router as match_router
 from app.api.tasks import router as tasks_router
@@ -76,6 +77,7 @@ app.include_router(tasks_router)
 app.include_router(detect_router, prefix="/api/v1")
 app.include_router(text_router, prefix="/api/v1")
 app.include_router(match_router, prefix="/api/v1")
+app.include_router(agent_router, prefix="/api/v1")
 app.include_router(task_ws_router)
 
 

@@ -22,6 +22,7 @@ pnpm install
 
 ## 第三版功能
 
+- 实验5 新增 AI 对话接口：`POST /api/v1/agent/chat`（LangChain Agent，可调用球员检测/解说分类工具，SQLite 会话支持断点续聊）。需在 `backend/.env` 配置大模型 key（模板见仓库 `exp5/.env.example`），未配置时其余功能不受影响；前端 `/agent` 页面开发中，接口契约见仓库 `exp5/CONTRACT.md`，后端实现位于 `backend/app/agent/` 与 `backend/app/api/agent.py`。
 - 默认首页与 `/video` 跳转到 `/video-v3` 视频分析工作台。
 - 选择 MP4 后出现“正在分析中，请稍等”，进度条由 WebSocket / REST 的任务进度更新，结果载入后关闭等待界面；上传或分析失败会显示原因。
 - 视频画面占较大宽度，关键事件在右侧；人数变化图跨两列。点击事件定位视频并保持暂停。
