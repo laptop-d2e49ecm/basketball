@@ -10,3 +10,7 @@ numpy>=1.26
 pillow>=10.0
 scikit-learn>=1.5
 joblib>=1.4
+# 实验5 Agent（大模型对话，任务书要求 LangChain >= 1.0）
+langchain>=1.0
+langchain-openai>=0.3
+openai>=1.40
