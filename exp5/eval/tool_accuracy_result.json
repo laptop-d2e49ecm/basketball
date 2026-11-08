@@ -1,0 +1,102 @@
+{
+  "tested_at": "2026-11-08T20:22:33",
+  "accuracy": 1.0,
+  "records": [
+    {
+      "round": 1,
+      "q": "f000005 这张图里有几个球员？",
+      "expect": "player_detect",
+      "called": [
+        "player_detect"
+      ],
+      "ok": true,
+      "seconds": 5.2
+    },
+    {
+      "round": 2,
+      "q": "帮我检测一下 f000040 这张图有没有球员",
+      "expect": "player_detect",
+      "called": [
+        "player_detect"
+      ],
+      "ok": true,
+      "seconds": 5.8
+    },
+    {
+      "round": 3,
+      "q": "f000025 图里的人数是多少？",
+      "expect": "player_detect",
+      "called": [
+        "player_detect"
+      ],
+      "ok": true,
+      "seconds": 3.8
+    },
+    {
+      "round": 4,
+      "q": "这句解说什么动作：詹姆斯突破分球，底角三分命中！",
+      "expect": "commentary_classify",
+      "called": [
+        "commentary_classify"
+      ],
+      "ok": true,
+      "seconds": 10.9
+    },
+    {
+      "round": 5,
+      "q": "分类一下这条解说：抢断之后一条龙快攻上篮得手",
+      "expect": "commentary_classify",
+      "called": [
+        "commentary_classify"
+      ],
+      "ok": true,
+      "seconds": 5.1
+    },
+    {
+      "round": 6,
+      "q": "这条文字是什么类别：教练请求了暂停，球队布置战术",
+      "expect": "commentary_classify",
+      "called": [
+        "commentary_classify"
+      ],
+      "ok": true,
+      "seconds": 4.5
+    },
+    {
+      "round": 7,
+      "q": "库里又抢到一个前场篮板！这句解说属于什么动作？",
+      "expect": "commentary_classify",
+      "called": [
+        "commentary_classify"
+      ],
+      "ok": true,
+      "seconds": 5.7
+    },
+    {
+      "round": 8,
+      "q": "再看看 f000005，帮我检测一下球员",
+      "expect": "player_detect",
+      "called": [
+        "player_detect"
+      ],
+      "ok": true,
+      "seconds": 4.1
+    },
+    {
+      "round": 9,
+      "q": "AI 解说员是干什么的？",
+      "expect": "none",
+      "called": [],
+      "ok": true,
+      "seconds": 4.6
+    },
+    {
+      "round": 10,
+      "q": "你们这个系统能做些什么？",
+      "expect": "none",
+      "called": [],
+      "ok": true,
+      "seconds": 2.2
+    }
+  ]
+}
