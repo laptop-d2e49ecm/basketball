@@ -1,5 +1,5 @@
 {
-  "tested_at": "2026-11-08T20:22:33",
+  "tested_at": "2026-11-08T20:30:57",
   "accuracy": 1.0,
   "records": [
     {
@@ -10,7 +10,7 @@
         "player_detect"
       ],
       "ok": true,
-      "seconds": 5.2
+      "seconds": 6.3
     },
     {
       "round": 2,
@@ -20,7 +20,7 @@
         "player_detect"
       ],
       "ok": true,
-      "seconds": 5.8
+      "seconds": 6.8
     },
     {
       "round": 3,
@@ -30,7 +30,7 @@
         "player_detect"
       ],
       "ok": true,
-      "seconds": 3.8
+      "seconds": 5.9
     },
     {
       "round": 4,
@@ -40,7 +40,7 @@
         "commentary_classify"
       ],
       "ok": true,
-      "seconds": 10.9
+      "seconds": 6.1
     },
     {
       "round": 5,
@@ -50,7 +50,7 @@
         "commentary_classify"
       ],
       "ok": true,
-      "seconds": 5.1
+      "seconds": 10.2
     },
     {
       "round": 6,
@@ -60,7 +60,7 @@
         "commentary_classify"
       ],
       "ok": true,
-      "seconds": 4.5
+      "seconds": 5.2
     },
     {
       "round": 7,
@@ -70,7 +70,7 @@
         "commentary_classify"
       ],
       "ok": true,
-      "seconds": 5.7
+      "seconds": 8.3
     },
     {
       "round": 8,
@@ -80,7 +80,7 @@
         "player_detect"
       ],
       "ok": true,
-      "seconds": 4.1
+      "seconds": 6.5
     },
     {
       "round": 9,
@@ -88,7 +88,7 @@
       "expect": "none",
       "called": [],
       "ok": true,
-      "seconds": 4.6
+      "seconds": 3.8
     },
     {
       "round": 10,
@@ -96,7 +96,7 @@
       "expect": "none",
       "called": [],
       "ok": true,
-      "seconds": 2.2
+      "seconds": 4.1
     }
   ]
 }

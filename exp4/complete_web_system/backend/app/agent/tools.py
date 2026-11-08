@@ -9,10 +9,13 @@
 """
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
 
 from langchain.tools import tool
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
 
 from app.core.config import settings
 from app.services.image_detector import ImageDetector
@@ -97,4 +100,70 @@ def commentary_classify(text: str) -> str:
         return f"工具调用失败：{type(exc).__name__}: {exc}"
 
 
-TOOLS = [player_detect, commentary_classify]
+# ---- RAG：真人解说语料检索（sklearn 字级 TF-IDF，零新增依赖） ----
+# 语料查找顺序：.env 的 EXP5_CORPUS_PATH → 仓库 data 目录 → backend/ml/（独立部署时的放置位）
+_CORPUS_CANDIDATES = [
+    BACKEND_DIR / "ml" / "livetext_train.jsonl",
+    BACKEND_DIR.parents[2] / "data" / "processed" / "texts" / "livetext" / "split_train.jsonl",
+]
+
+
+def _find_corpus() -> Path | None:
+    from app.agent.providers import load_env
+
+    env_value = load_env().get("EXP5_CORPUS_PATH", "")
+    candidates = ([Path(env_value)] if env_value else []) + _CORPUS_CANDIDATES
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+@lru_cache(maxsize=1)
+def _commentary_index() -> dict | None:
+    """首次调用时建索引（约 3 万条、秒级）；语料缺失返回 None（工具报错但不影响其他功能）。"""
+    corpus_path = _find_corpus()
+    if corpus_path is None:
+        return None
+    lines: list[dict] = []
+    with corpus_path.open(encoding="utf-8") as fh:
+        for raw in fh:
+            try:
+                item = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            text = str(item.get("text", "")).strip()
+            if 4 <= len(text) <= 120:  # 过滤空句/超长流水账，保持例句可用性
+                lines.append(text)
+    if not lines:
+        return None
+    vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 3), max_features=80000)
+    matrix = vectorizer.fit_transform(lines)
+    return {"lines": lines, "vectorizer": vectorizer, "matrix": matrix, "path": corpus_path}
+
+
+@tool
+def retrieve_commentary(query: str, top_k: int = 3) -> str:
+    """真人解说语料检索工具。给定比赛局面描述或关键词，从 3 万条真人篮球解说中返回最相似的几条原句（附相似度）。
+
+    何时调用：用户问"真人会怎么解说 / 解说风格参考"，或让你"来一句/生成一段解说"时——
+    先用局面关键词调本工具拿真人例句，再基于例句组织回答，风格更真实。
+    query 填局面关键词（如"三分出手命中""快攻上篮"），top_k 默认 3。
+    """
+    try:
+        index = _commentary_index()
+        if index is None:
+            return "工具调用失败：解说语料库未配置（缺 split_train.jsonl；可在 backend/.env 设 EXP5_CORPUS_PATH 指向语料文件）"
+        top_k = max(1, min(int(top_k), 5))
+        query_vec = index["vectorizer"].transform([query.strip()])
+        sims = linear_kernel(query_vec, index["matrix"]).ravel()
+        if float(sims.max()) < 0.05:
+            return "没有检索到足够相似的真人解说，建议换个更具体的局面关键词（如'三分命中''快攻上篮'）"
+        order = sims.argsort()[::-1][:top_k]
+        parts = [f"{rank}. {index['lines'][int(i)]}（相似度 {sims[i]:.2f}）" for rank, i in enumerate(order, 1)]
+        return "真人解说参考：\n" + "\n".join(parts)
+    except Exception as exc:  # noqa: BLE001
+        return f"工具调用失败：{type(exc).__name__}: {exc}"
+
+
+TOOLS = [player_detect, commentary_classify, retrieve_commentary]
