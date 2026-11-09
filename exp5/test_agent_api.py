@@ -11,7 +11,8 @@ import sys
 import httpx
 
 URL = "http://127.0.0.1:8000/api/v1/agent/chat"
-client = httpx.Client(timeout=120)
+# trust_env=False：本机开了系统代理时，避免 localhost 请求被代理劫持导致超时
+client = httpx.Client(timeout=120, trust_env=False)
 
 results: list[tuple[str, bool, str]] = []
 

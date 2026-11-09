@@ -90,9 +90,10 @@ def model_info() -> ApiEnvelope[dict[str, object]]:
         except (OSError, json.JSONDecodeError):
             logger.warning("Unable to read text classifier metadata: %s", settings.text_meta_path)
     return ApiEnvelope(result={
-        "name": "YOLOv8n",
+        "name": "YOLOv8n(A2'v2)",
         "parameters": "3.2M",
-        "map50": 0.418,
+        "map50": 0.992,
+        "map50_caliber": "clean190（data_clean test 190 原始帧；增强缺陷已修复重训，见 models/exp2_v2）",
         "classes": ["player"],
         "weights_available": settings.model_path.is_file(),
         "avg_infer_ms": task_repo.measured_average_infer_ms(),
@@ -100,7 +101,7 @@ def model_info() -> ApiEnvelope[dict[str, object]]:
             "file": settings.image_model_path.name,
             "weights_available": settings.image_model_path.is_file(),
             "loaded": getattr(app.state, "image_detector", None) is not None,
-            "test_map50": 0.420,
+            "test_map50": 0.990,
             "runtime": "ONNX Runtime CPU",
         },
         "text_classifier": {

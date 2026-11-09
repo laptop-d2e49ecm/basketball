@@ -31,7 +31,7 @@
 | 事件表（18 类动作、6,247 行） | `data/processed/multisports/events.csv` | 加分：(事件特征→解说词) 指令对、Agent 事件工具 |
 | 球员检测图（test 划分抽样 8 张+GT） | `exp4/complete_web_system/samples/images/` | 场景1 图像工具测试（只用 test！） |
 | 解说样例 20 条（test 划分） | `samples/texts/解说样例.jsonl` | 场景2 文本分类测试 |
-| `best.pt` / `a2_int8_val346.onnx` | `exp4/complete_web_system/backend/weights/` | 工具背后的模型（当前干净口径 mAP50 0.987/0.988）。**⏳ 待实验2 v2 重训后更换**（见 `docs/实验2重训执行计划.md`）：换 A2'/M1' 新权重 + INT8 改名校准 val173，接口与 Agent 工具封装零改动，换完跑一次 /detect 与视频冒烟 |
+| `best.pt`(A2′) / `a2v2_int8_val173.onnx` | `exp4/complete_web_system/backend/weights/` | 工具背后的模型。**✅ v2 已更换（2026-11-08）**：A2′ clean190 mAP50 **0.992**、INT8 **0.990**；接口与 Agent 工具封装零改动，冒烟 3/3 + 接口回归 5/5 复测通过（f000005 平均置信度 0.51→0.89） |
 | FastAPI 后端（信封/错误码/CORS/SQLite/WS） | `exp4/complete_web_system/backend/` | Agent API 宿主；`app/services/` 为工具实现层 |
 | Vue3 前端（四页+NavBar+响应式） | `exp4/complete_web_system/frontend/` | 新增 /agent 页挂进骨架 |
 | CommentaryService 抽象 + 桩 | `backend/worker/commentary/{base,stub}.py` | **实验5 预留插拔点**，新增 `llm.py` |
@@ -155,7 +155,7 @@ Provider 切换用环境变量 `EXP5_LLM_PROVIDER=api|ollama`（`exp5/agent/prov
 ## 六、报告骨架（任务书"实验报告要求"逐条对位，写时直接抄结构）
 
 1. **成员与分工表**（上表换人名）。
-2. **闭环架构图**：实验1 语料/图像 → 实验2 `best.pt` → 实验3 INT8 → 实验4 `/api/v1/*` → 实验5 工具+LLM → 前端 /agent；标注数据流节点（40,376 条语料、4,316 张训练图、mAP50 数字**待 v2 重训后刷新**、事件表 6,247 行）。**技术复用点表**：实验1 清洗→5.1.2；实验2 迁移训练思想+消融方法→5.2.2 对比实验；实验3 量化→QLoRA 4bit 与 Ollama Q4；实验4 API/信封/CORS/会话→工具与部署。
+2. **闭环架构图**：实验1 语料/图像 → 实验2 `best.pt` → 实验3 INT8 → 实验4 `/api/v1/*` → 实验5 工具+LLM → 前端 /agent；标注数据流节点（40,376 条语料、4316 张训练图（v2 修复增强）、mAP50 **A2′ 0.992 / INT8 0.990**（clean190）、事件表 6,247 行）。**技术复用点表**：实验1 清洗→5.1.2；实验2 迁移训练思想+消融方法→5.2.2 对比实验；实验3 量化→QLoRA 4bit 与 Ollama Q4；实验4 API/信封/CORS/会话→工具与部署。
 3. **Agent 性能评估**：10 轮工具调用准确率（≥90%）；延迟表（文本/图像/多轮 × API/本地Q4，量化前后对比）；三方分类准确率表（joblib vs 零样本 vs LoRA）。
 4. **问题与解决**（提前埋好记录位）：QLoRA 显存（4bit+梯度累积8）；工具调用失败（3 次重试+日志）；跨域（CORS 5173）；async 路由同步 httpx 自调用死锁（用内部函数/AsyncClient）；API 限流降级 Ollama。**对比总结**：实验2 小模型微调（全参迁移、收敛快、只能分类）vs 实验5 大模型 QLoRA（参数高效、指令泛化、资源受限可训）。
 
@@ -167,10 +167,11 @@ Provider 切换用环境变量 `EXP5_LLM_PROVIDER=api|ollama`（`exp5/agent/prov
 2. **async 路由内同步 httpx 自调用 8000 → 死锁**：工具默认复用 `app/services/` 内部函数；必须 HTTP 时用 `httpx.AsyncClient`。
 3. **CORS/端口**：前端 5173（不是任务书模板的 3000）；Agent 合并部署 8000，报告说明与 8001 示意的关系。
 4. **防泄漏**：演示与评估只用 `split_test`/test 图像；微调数据抽自 `split_train`，脚本内置断言。
-5. **精度口径**：**⏳ 待刷新**——实验2 v2 重训上线后，旧双口径（干净 0.987/0.988 vs 脏 0.419/0.420）作废，报告统一改引 A2'/M1' 在 clean190 的新数字，说明缩为一句"增强缺陷已修复并重训 v2"；重训完成前如需引用，仍以 `reports/clean-eval.json` 为准并标注口径。
+5. **精度口径**：**✅ 已刷新（v2）**——增强缺陷修复重训后统一 clean190 单口径：A1 0.990 / **A2′ 0.992（部署）** / M1′ 0.993 / INT8 0.990（`models/exp2_v2/eval_test190.json`）；旧双口径（0.987/0.988 vs 0.419/0.420）已作废，仅作 erratum 素材。
 6. **API key/配额**：`.env` 不入库；API 限流或断网 → `EXP5_LLM_PROVIDER=ollama` 降级演示。
 7. **Windows 编码**：脚本统一 UTF-8 读写（`-X utf8`）。
 8. **工具误选**：描述写明"输入是图像路径→选 player_detect；输入是文字→选 commentary_classify"；准确率<90% 先改提示词再加路由。
+9. **系统代理劫持 httpx（2026-11-08 实测）**：本机开 VPN/Clash 类代理时，Python httpx 默认读取系统代理，会把 localhost 请求和 LLM 调用都绕进代理，造成偶发超时/60 秒慢响应/500。已修：LLM 客户端默认直连（providers.py `trust_env=False`，需要代理时 `.env` 设 `EXP5_LLM_TRUST_ENV=1`）；接口测试脚本同样 `trust_env=False`。队友机器若也开代理，直接受益。
 
 ---
 

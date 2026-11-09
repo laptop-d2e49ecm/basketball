@@ -17,7 +17,7 @@ class Settings:
     runs_dir: Path = Path(os.getenv("BASKETBALL_RUNS_DIR", str(BACKEND_DIR / "runs")))
     model_path: Path = Path(os.getenv("BASKETBALL_MODEL_PATH", str(BACKEND_DIR / "weights" / "best.pt")))
     image_model_path: Path = Path(
-        os.getenv("BASKETBALL_IMAGE_MODEL_PATH", str(BACKEND_DIR / "weights" / "a2_int8_val346.onnx"))
+        os.getenv("BASKETBALL_IMAGE_MODEL_PATH", str(BACKEND_DIR / "weights" / "a2v2_int8_val173.onnx"))
     )
     text_model_path: Path = Path(
         os.getenv("BASKETBALL_TEXT_MODEL_PATH", str(BACKEND_DIR / "app" / "ml" / "text_action_clf.joblib"))

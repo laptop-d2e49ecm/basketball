@@ -27,17 +27,25 @@ def load_env(path: Path = ENV_PATH) -> dict[str, str]:
 
 
 def make_chat_model():
-    """按 .env 构造 ChatOpenAI；key 未配置时抛 RuntimeError（由 API 层转 500）。"""
+    """按 .env 构造 ChatOpenAI；key 未配置时抛 RuntimeError（由 API 层转 500）。
+
+    默认直连不走系统代理（EXP5_LLM_TRUST_ENV=1 可改回走代理）——
+    本机若开着 VPN/Clash 类代理，httpx 默认 trust_env 会把 LLM 请求也劫持进代理，
+    造成偶发超时/慢响应；国内中转端点直连更稳。
+    """
+    import httpx
     from langchain_openai import ChatOpenAI
 
     cfg = load_env()
     api_key = cfg.get("EXP5_LLM_API_KEY", "")
     if not api_key or "粘贴" in api_key or "填" in api_key:
         raise RuntimeError(f"大模型 key 未配置，请编辑 {ENV_PATH}")
+    trust_env = cfg.get("EXP5_LLM_TRUST_ENV", "0") == "1"
     return ChatOpenAI(
         model=cfg.get("EXP5_LLM_MODEL", "deepseek-v4.1-flash-1017"),
         base_url=cfg.get("EXP5_LLM_BASE_URL", ""),
         api_key=api_key,
         temperature=0,
         timeout=60,
+        http_client=httpx.Client(trust_env=trust_env, timeout=60),
     )

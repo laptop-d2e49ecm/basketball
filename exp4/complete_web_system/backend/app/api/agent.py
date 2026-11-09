@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from typing import Any
@@ -20,6 +21,7 @@ from app.core.errors import ModelError, NotFoundError
 from app.db import agent_sessions
 from app.schemas.envelope import ApiEnvelope
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["agent"])
 
 _MS_PATTERN = re.compile(r"([0-9]+(?:\.[0-9]+)?)\s*ms")
@@ -117,9 +119,14 @@ def agent_chat(payload: AgentChatRequest, request: Request) -> ApiEnvelope[dict[
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
+        logger.exception("agent_chat LLM 调用失败 session=%s", session_id)
         text = f"{type(exc).__name__}: {exc}".lower()
         if "timeout" in text or "timed out" in text:
             raise HTTPException(status_code=504, detail="AI 响应超时，请重试") from exc
+        if "rate" in text or "429" in text:
+            raise HTTPException(
+                status_code=429, detail="AI 服务调用过于频繁，请稍等几秒再试"
+            ) from exc
         raise ModelError("AI 服务暂时不可用，请稍后重试") from exc
 
     final = str(result["messages"][-1].content)
