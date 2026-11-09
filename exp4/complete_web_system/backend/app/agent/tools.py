@@ -102,8 +102,9 @@ def commentary_classify(text: str) -> str:
 
 
 # ---- RAG：真人解说语料检索（sklearn 字级 TF-IDF，零新增依赖） ----
-# 语料查找顺序：.env 的 EXP5_CORPUS_PATH → 仓库 data 目录 → backend/ml/（独立部署时的放置位）
+# 语料查找顺序：.env 的 EXP5_CORPUS_PATH → backend/ml/（git 分发位置）→ 仓库 data 目录
 _CORPUS_CANDIDATES = [
+    BACKEND_DIR / "ml" / "split_train.jsonl",
     BACKEND_DIR / "ml" / "livetext_train.jsonl",
     BACKEND_DIR.parents[2] / "data" / "processed" / "texts" / "livetext" / "split_train.jsonl",
 ]

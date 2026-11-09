@@ -10,7 +10,7 @@
 1. `git pull` master（**权重、分类器、语料外的所有代码文档都在仓库里**，含最新 v2 模型文件）；
 2. `exp4/complete_web_system/backend/` 建 venv（Python 3.11/3.12 均可）：`pip install -r requirements-dev.txt`（已含 langchain/openai）；
 3. 配 key：复制 `exp5/.env.example` 为 `backend/.env`，填组长私发的 key（ChatAnywhere + `deepseek-v4.1-flash-1017` 已实测可用）；**key 不进 git、不发群**；
-4. RAG 语料：把交接包里的 `split_train.jsonl` 放到 `backend/ml/livetext_train.jsonl`（或 `.env` 设 `EXP5_CORPUS_PATH`）——不放的话检索工具会优雅降级，其他功能不受影响；
+4. RAG 语料：**已在 git 里**（`backend/ml/split_train.jsonl`，RAG 工具自动找到；微调造数据用 `backend/ml/split_train.jsonl`、考题用 `split_test.jsonl`）；
 5. 启动验证（应全绿）：
    - 冒烟：`.venv\Scripts\python.exe exp5\smoke_agent.py`（3/3 场景）
    - 接口：起 uvicorn 后跑 `exp5\test_agent_api.py`（5/5 用例）
@@ -51,8 +51,8 @@ LLM 解说替换视频桩：实现 `worker/commentary/llm.py`（继承 `Commenta
 
 ## 6. 资产清单
 
-- **git 上有（pull 即得）**：全部代码、五工具 Agent 后端、契约/计划/手册、评估脚本与结果、v2 权重（best.pt / a2v2_int8_val173.onnx）、文本分类器、报告 v1+v2、图 1-7；
-- **需组长私发**：① API key；② `微调线交接包.zip`（语料，放 backend/ml/）；
+- **git 上有（pull 即得）**：全部代码、五工具 Agent 后端、契约/计划/手册、评估脚本与结果、v2 权重（best.pt / a2v2_int8_val173.onnx）、文本分类器、**解说语料（backend/ml/split_train|test.jsonl）**、报告 v1+v2、图 1-7；
+- **需要自己准备**：大模型 API key（你已有的 DeepSeek 官方 key 直接用，照 `.env.example` 填 `backend/.env`；官方直连延迟优于中转）；
 - **坑速查**：`docs/TEAM_PLAN_EXP5.md` §七 9 条（代理劫持、Anaconda DLL、CORS、防泄漏、精度口径等）。
 
 ## 7. 顺序建议
