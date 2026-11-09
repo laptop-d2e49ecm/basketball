@@ -19,6 +19,7 @@ from sklearn.metrics.pairwise import linear_kernel
 
 from app.core.config import settings
 from app.services.image_detector import ImageDetector
+from app.services.match_workflow import run_match
 from app.services.text_classifier import TextClassifier
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -166,4 +167,60 @@ def retrieve_commentary(query: str, top_k: int = 3) -> str:
         return f"工具调用失败：{type(exc).__name__}: {exc}"
 
 
-TOOLS = [player_detect, commentary_classify, retrieve_commentary]
+@tool
+def image_text_match(image_path: str, text: str) -> str:
+    """图文匹配工具。给定一张图像路径和一句文字，判断两者是否同为篮球比赛内容（图像侧检测球员 + 文本侧判断是否篮球解说），返回匹配结论与两侧证据。
+
+    何时调用：用户同时给出图像和一句话，问"这张图和这句话匹不匹配 / 是否相关"。
+    """
+    try:
+        path = _resolve_image(image_path)
+        result = run_match(_detector(), _classifier(), path.read_bytes(), text)
+        conclusion = "匹配（两侧均为篮球比赛内容）" if result["match"] else "不匹配"
+        evidence = "；".join(result["evidence"])
+        return f"结论：{conclusion}。证据：{evidence}。总耗时 {result['total_ms']}ms"
+    except Exception as exc:  # noqa: BLE001
+        return f"工具调用失败：{type(exc).__name__}: {exc}"
+
+
+@tool
+def query_video_events(task_id: str) -> str:
+    """视频事件查询工具。给定一个视频分析任务编号，返回该任务产出的关键事件列表（事件类型、发生时间、人数等）。
+
+    何时调用：用户给出任务编号（32 位十六进制，来自视频分析页提交视频后的结果），问"这个视频里发生了什么 / 有哪些事件"。
+    """
+    try:
+        from app.db import task_repo
+
+        task_id = task_id.strip()
+        row = task_repo.get_task(task_id)
+        if row is None:
+            return f"工具调用失败：任务 {task_id} 不存在（可在视频分析页提交视频获得任务编号）"
+        events_path = settings.runs_dir / task_id / "events.jsonl"
+        if not events_path.is_file():
+            return f"任务 {task_id} 暂无事件文件（可能仍在分析中，或未产生关键事件）"
+        events = []
+        for line in events_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        if not events:
+            return f"任务 {task_id} 未产生关键事件"
+        parts = []
+        for event in events[:8]:
+            t_ms = event.get("t_ms")
+            when = f"{t_ms / 1000:.1f}" if isinstance(t_ms, (int, float)) else "?"
+            etype = event.get("type", "事件")
+            extra = {k: v for k, v in event.items() if k in ("player_count", "message", "text") and v not in (None, "")}
+            parts.append(f"[{when}s] {etype} {extra if extra else ''}".strip())
+        summary = f"（共 {len(events)} 个事件，仅列前 8 个）" if len(events) > 8 else f"（共 {len(events)} 个事件）"
+        return f"任务 {task_id}（视频 {row['video_name']}）的关键事件：\n" + "\n".join(parts) + f"\n{summary}"
+    except Exception as exc:  # noqa: BLE001
+        return f"工具调用失败：{type(exc).__name__}: {exc}"
+
+
+TOOLS = [player_detect, commentary_classify, retrieve_commentary, image_text_match, query_video_events]
