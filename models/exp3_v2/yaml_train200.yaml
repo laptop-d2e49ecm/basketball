@@ -1,0 +1,5 @@
+path: D:/Projects/python/basketball
+train: models/exp3_v2/train200.txt
+val: models/exp3_v2/train200.txt
+names:
+  0: player

@@ -1,0 +1,26 @@
+{
+  "raw_output_equivalence": {
+    "n_images": 10,
+    "max_abs_box_px": 0.00154,
+    "max_abs_score": 1.5e-05
+  },
+  "pt_rect_true_default": {
+    "P": 0.9825,
+    "R": 0.9671,
+    "map50": 0.992,
+    "map50_95": 0.7585
+  },
+  "pt_rect_false_640": {
+    "P": 0.9732,
+    "R": 0.9738,
+    "map50": 0.991,
+    "map50_95": 0.7563
+  },
+  "onnx_fp32_640": {
+    "P": 0.9732,
+    "R": 0.9738,
+    "map50": 0.991,
+    "map50_95": 0.7563
+  },
+  "pt_rect_false_equals_onnx": true
+}

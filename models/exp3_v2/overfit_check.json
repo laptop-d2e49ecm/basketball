@@ -1,0 +1,23 @@
+{
+  "weights": "models/exp2_v2/A2_yolov8n/weights/best.pt (A2′)",
+  "train200_seen": {
+    "n_images": 200,
+    "P": 0.9945,
+    "R": 0.9793,
+    "map50": 0.9946,
+    "map50_95": 0.8747
+  },
+  "test190_unseen": {
+    "n_images": 190,
+    "P": 0.9825,
+    "R": 0.9671,
+    "map50": 0.992,
+    "map50_95": 0.7585
+  },
+  "gap_pp": {
+    "P": 1.2,
+    "R": 1.22,
+    "map50": 0.26,
+    "map50_95": 11.62
+  }
+}

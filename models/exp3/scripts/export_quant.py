@@ -19,7 +19,7 @@ import onnx
 from onnxruntime.quantization import CalibrationDataReader, quantize_static
 from ultralytics.data.augment import LetterBox
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # models/exp3/scripts -> 仓库根（2026-11 目录搬迁后修正层级）
 IMGS = {"val": "data/splits/yolo/images/val", "train": "data/splits/yolo/images/train"}
 
 
