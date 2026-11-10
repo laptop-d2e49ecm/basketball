@@ -1,0 +1,21 @@
+{
+  "tested_at": "2026-11-10T21:35:00",
+  "note": "真实故障验证（不是注入假 agent）：超时用真实上游 + 0.3s 客户端超时触发；并发用 15 个真实请求",
+  "timeout_test": {
+    "method": "重启后端并设 EXP5_LLM_TIMEOUT=0.3（load_env 支持环境变量覆盖 .env），打真实 DeepSeek",
+    "requests": 3,
+    "results": [
+      {"status": 504, "elapsed_s": 5.01, "msg": "AI 响应超时，请重试"},
+      {"status": 504, "elapsed_s": 3.14, "msg": "AI 响应超时，请重试"},
+      {"status": 504, "elapsed_s": 3.56, "msg": "AI 响应超时，请重试"}
+    ],
+    "explain": "耗时>0.3s 是因为 openai SDK 内部重试；状态码与文案均符合契约 §4"
+  },
+  "concurrency_test": {
+    "method": "ThreadPoolExecutor 15 并发，混合问题（图像/文本/解说/闲聊）",
+    "total_s": 30.41,
+    "status_dist": {"200": 15},
+    "latencies_s": [4.71, 30.41, 6.56, 4.56, 4.78, 4.71, 29.96, 6.6, 3.55, 4.82, 4.73, 30.35, 6.05, 4.56, 4.77],
+    "finding": "全部成功、无对外 429；但 3 个请求耗时约 30s，符合上游限流后 SDK 内部退避重试的特征——高并发下延迟会被放大，说明任务书难点里'请求排队/并发控制'确有现实依据"
+  }
+}
