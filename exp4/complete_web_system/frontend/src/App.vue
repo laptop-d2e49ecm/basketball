@@ -9,6 +9,7 @@ import {
   PictureOutlined,
   BarChartOutlined,
   HistoryOutlined,
+  RobotOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
@@ -16,6 +17,7 @@ const router = useRouter()
 const collapsed = ref(false)
 
 const navigation = [
+  { key: '/agent', label: 'AI 解说', icon: RobotOutlined },
   { key: '/video-v3', label: '视频分析工作台', icon: BarChartOutlined },
   { key: '/video-v3?view=recent', label: '最近任务', icon: HistoryOutlined },
   { key: '/detect', label: '球员图像检测', icon: PictureOutlined },

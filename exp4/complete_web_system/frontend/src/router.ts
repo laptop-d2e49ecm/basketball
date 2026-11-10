@@ -3,6 +3,7 @@ import DetectView from './views/DetectView.vue'
 import MatchView from './views/MatchView.vue'
 import TextView from './views/TextView.vue'
 import VideoV3View from './views/VideoV3View.vue'
+import AgentChatView from './views/AgentChatView.vue'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/video-v3' },
@@ -34,6 +35,12 @@ const routes: RouteRecordRaw[] = [
     name: 'match',
     component: MatchView,
     meta: { title: '图文匹配', subtitle: '对照单张比赛图像与解说文本的内容。' },
+  },
+  {
+    path: '/agent',
+    name: 'agent',
+    component: AgentChatView,
+    meta: { title: 'AI 解说', subtitle: '用一句话问球，Agent 自己决定调哪个工具。' },
   },
 ]
 
