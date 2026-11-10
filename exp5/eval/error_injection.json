@@ -1,0 +1,72 @@
+{
+  "passed": 6,
+  "total": 6,
+  "cases": [
+    {
+      "case": "正常对话",
+      "expect": 200,
+      "got": 200,
+      "body": {
+        "code": 0,
+        "result": {
+          "session_id": "sess_e18014f3ad9f",
+          "agent": "ok",
+          "tool_calls": [],
+          "elapsed_ms": 8,
+          "provider": "api"
+        },
+        "msg": "ok"
+      }
+    },
+    {
+      "case": "LLM 超时",
+      "expect": 504,
+      "got": 504,
+      "body": {
+        "code": 504,
+        "result": null,
+        "msg": "AI 响应超时，请重试"
+      }
+    },
+    {
+      "case": "限流 429",
+      "expect": 429,
+      "got": 429,
+      "body": {
+        "code": 429,
+        "result": null,
+        "msg": "AI 服务调用过于频繁，请稍等几秒再试"
+      }
+    },
+    {
+      "case": "上游连接失败",
+      "expect": 500,
+      "got": 500,
+      "body": {
+        "code": 500,
+        "result": null,
+        "msg": "AI 服务暂时不可用，请稍后重试"
+      }
+    },
+    {
+      "case": "空消息",
+      "expect": 400,
+      "got": 400,
+      "body": {
+        "code": 400,
+        "result": null,
+        "msg": "请求参数错误：message String should have at least 1 character"
+      }
+    },
+    {
+      "case": "坏 session",
+      "expect": 404,
+      "got": 404,
+      "body": {
+        "code": 404,
+        "result": null,
+        "msg": "会话不存在，请去掉 session_id 重新开始对话"
+      }
+    }
+  ]
+}

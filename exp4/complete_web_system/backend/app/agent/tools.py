@@ -36,6 +36,20 @@ def _classifier() -> TextClassifier:
     return TextClassifier(settings.text_model_path, settings.text_meta_path)
 
 
+@lru_cache(maxsize=1)
+def _lora_classifier():
+    """实验5 微调模型（懒加载；EXP5_TEXT_BACKEND=lora 时才构造）。"""
+    from app.agent.lora_classifier import LoraCommentaryClassifier
+
+    return LoraCommentaryClassifier()
+
+
+def _text_backend() -> str:
+    from app.agent.providers import load_env
+
+    return (load_env().get("EXP5_TEXT_BACKEND", "joblib") or "joblib").strip().lower()
+
+
 def _resolve_image(image_path: str) -> Path:
     """路径解析：支持绝对路径、仓库相对路径、samples/images 下的简写（如 f000005）。"""
     raw = image_path.strip().strip("\"'")
@@ -89,6 +103,12 @@ def commentary_classify(text: str) -> str:
     何时调用：用户给出一句解说/评述文字，并询问"这是什么动作 / 什么类别"。
     """
     try:
+        if _text_backend() == "lora":
+            r = _lora_classifier().predict(text)
+            return (
+                f"分类结果：{r['label']}（置信度 {r['confidence']}，后端：实验5 微调 LoRA）；"
+                f"耗时 {r['infer_ms']}ms"
+            )
         result = _classifier().predict(text)
         if not result["is_basketball_text"]:
             return f"判断：非篮球赛事文本（置信度 {result['confidence']}）"
