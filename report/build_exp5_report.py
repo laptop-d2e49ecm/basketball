@@ -51,6 +51,14 @@ def setup_document() -> Document:
     # 封面不显示页码（首页页眉页脚独立）
     sec.different_first_page_header_footer = True
 
+    for style_name, size in (("Heading 1", 16), ("Heading 2", 14), ("Heading 3", 12)):
+        st = doc.styles[style_name]
+        st.font.name = BODY_FONT_EN
+        st.font.size = Pt(size)
+        st.font.bold = True
+        st.font.color.rgb = RGBColor(0, 0, 0)
+        st.element.rPr.rFonts.set(qn("w:eastAsia"), HEAD_FONT)
+
     normal = doc.styles["Normal"]
     normal.font.name = BODY_FONT_EN
     normal.font.size = Pt(12)
@@ -82,31 +90,33 @@ def add_page_number_footer(doc: Document) -> None:
     _set_run_font(run, 9)
 
 
-def h1(doc: Document, text: str) -> None:
-    p = doc.add_paragraph()
-    p.paragraph_format.page_break_before = True   # 每章另起一页
-    p.paragraph_format.space_before = Pt(0)
-    p.paragraph_format.space_after = Pt(12)
-    p.paragraph_format.line_spacing = Pt(32)
+def _heading(doc: Document, text: str, level: int, size: int, before: int, after: int,
+             spacing: int, page_break: bool = False):
+    """用内置 Heading 样式（目录域才能识别），再覆盖字体与间距。"""
+    p = doc.add_heading(level=level)
+    pf = p.paragraph_format
+    if page_break:
+        pf.page_break_before = True
+    pf.space_before = Pt(before)
+    pf.space_after = Pt(after)
+    pf.line_spacing = Pt(spacing)
+    pf.keep_with_next = True
     r = p.add_run(text)
-    _set_run_font(r, 16, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
+    _set_run_font(r, size, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
+    r.font.color.rgb = RGBColor(0, 0, 0)
+    return p
+
+
+def h1(doc: Document, text: str) -> None:
+    _heading(doc, text, 1, 16, 0, 12, 32, page_break=True)
 
 
 def h2(doc: Document, text: str) -> None:
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(12)
-    p.paragraph_format.space_after = Pt(6)
-    p.paragraph_format.line_spacing = Pt(24)
-    r = p.add_run(text)
-    _set_run_font(r, 14, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
+    _heading(doc, text, 2, 14, 12, 6, 24)
 
 
 def h3(doc: Document, text: str) -> None:
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(8)
-    p.paragraph_format.space_after = Pt(4)
-    r = p.add_run(text)
-    _set_run_font(r, 12, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
+    _heading(doc, text, 3, 12, 8, 4, 20)
 
 
 def para(doc: Document, text: str, indent: bool = True, align=None) -> None:
@@ -317,6 +327,32 @@ def cover(doc: Document) -> None:
     _set_run_font(r, 12)
 
 
+def toc(doc: Document) -> None:
+    """目录页：TOC 域（打开后按 F9 或在导出前由脚本更新）。"""
+    p = doc.add_paragraph()
+    p.paragraph_format.page_break_before = True
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_after = Pt(14)
+    r = p.add_run("目　录")
+    _set_run_font(r, 18, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
+
+    p2 = doc.add_paragraph()
+    run = p2.add_run()
+    begin = OxmlElement("w:fldChar")
+    begin.set(qn("w:fldCharType"), "begin")
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = ' TOC \\o "1-2" \\h \\z \\u '
+    sep = OxmlElement("w:fldChar")
+    sep.set(qn("w:fldCharType"), "separate")
+    placeholder = OxmlElement("w:t")
+    placeholder.text = "（目录将在 Word 中自动生成）"
+    end = OxmlElement("w:fldChar")
+    end.set(qn("w:fldCharType"), "end")
+    for el in (begin, instr, sep, placeholder, end):
+        run._r.append(el)
+
+
 def abstract(doc: Document) -> None:
     h1(doc, "摘　要")
     for text in [
@@ -493,6 +529,7 @@ def chapter3(doc: Document) -> None:
            ["解说语料", "41 场 40,376 条（33/4/4 划分）", "实验 5 微调与 RAG 检索"],
            ["资讯背景语料", "122 篇", "背景知识、数据策展对比实验"]],
           "表 3-2　数据资产总览")
+    figure(doc, "fig4_dataset_tree.png", "图 3-2　数据目录与文件组织", 12.5)
     para(doc, "数据质量按四维评分：完整性 100、一致性 100（保留集内重复为 0）、代表性 81.2（序列帧数基尼系数 0.188）、"
               "时效性 90，综合 92.8/100。另用 Data-Juicer 对同一批 122 篇语料做自动化策展对照："
               "六算子流水线耗时 134 s、输出 120 篇，而手工脚本 0.29 s——小语料下自动化不占优，"
@@ -616,7 +653,6 @@ def chapter6(doc: Document) -> None:
               "视频处理 Worker（独立进程，轮询 SQLite 认领任务）、可选 Celery 消费者（Redis 作 broker）。"
               "接口与 Worker 通过任务状态机（pending → running → ready/failed）解耦，长任务不阻塞请求；"
               "视频进度通过 WebSocket 推送到前端。")
-    figure(doc, "fig4_dataset_tree.png", "图 6-1　项目目录与数据组织", 13.0)
 
     h2(doc, "6.2　前端开发")
     para(doc, "前端用 Vue 3 + TypeScript + Vite + Ant Design Vue，共五个页面：视频分析工作台（v3，独立整页 iframe）、"
@@ -625,7 +661,7 @@ def chapter6(doc: Document) -> None:
     para(doc, "对话页 AgentChatView.vue 是实验 5 的主要前端产出：气泡区渲染 Agent 回复，工具调用以"
               "“🔧 球员检测 · 成功 · 81ms”形式呈现并可展开看入参/结果，错误按契约区分 400/404/429/500/504，"
               "超时与失败会给出“重试上一句”按钮；移动端用 max-width + word-break 保证气泡不溢出。")
-    figure(doc, "agent_03_multiturn.png", "图 6-2　/agent 页多轮对话（Edge）", 14.5)
+    figure(doc, "agent_03_multiturn.png", "图 6-1　/agent 页多轮对话（Edge）", 14.5)
 
     h2(doc, "6.3　后端开发")
     para(doc, "后端以 FastAPI 组织，所有 JSON 接口使用统一信封 {code, result, msg}，成功 code=0，"
@@ -690,7 +726,7 @@ def chapter7(doc: Document) -> None:
            ["本地基座 Qwen3-1.7B", "80%", "79.1%"],
            ["+ LoRA（3 epoch）", "80%", "83.7%"],
            ["+ LoRA（8 epoch）", "100%", "94.2%"]],
-          "表 7-1　四方对比（同一批题、同一 prompt、同一解码参数）")
+          "表 7-1　四方对比（同一批题、同一 prompt、同一解码参数；LoRA 含 3/8 epoch 两档）")
     para(doc, "两个结论值得一提。其一，微调把本地小模型从 79.1% 提到 94.2%（+15.1pp），并反超 DeepSeek 零样本的 86%——"
               "在“只输出 10 类之一”这种强格式约束下，领域小模型经过少量样本对齐后可以打过通用大模型。"
               "其二，收益集中在“类间区分”：基座把“阵容战术”全部答成“暂停换人”（0/10），微调后 9/10；"
@@ -861,8 +897,11 @@ def references(doc: Document) -> None:
     ]
     for i, r in enumerate(refs, 1):
         p = doc.add_paragraph()
-        p.paragraph_format.left_indent = Pt(0)
-        p.paragraph_format.first_line_indent = Pt(0)
+        pf = p.paragraph_format
+        pf.left_indent = Pt(24)
+        pf.first_line_indent = Pt(-24)      # 悬挂缩进：序号顶格，续行对齐
+        pf.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        pf.space_after = Pt(4)
         run = p.add_run(f"[{i}] {r}")
         _set_run_font(run, 10.5)
 
@@ -932,6 +971,7 @@ def build() -> Path:
     doc = setup_document()
     add_page_number_footer(doc)
     cover(doc)
+    toc(doc)
     abstract(doc)
     chapter1(doc)
     chapter2(doc)
