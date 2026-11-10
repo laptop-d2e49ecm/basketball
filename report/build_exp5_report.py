@@ -14,7 +14,7 @@ from pathlib import Path
 
 from docx import Document
 from docx.enum.section import WD_SECTION
-from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -48,6 +48,8 @@ def setup_document() -> Document:
     sec.right_margin = Cm(2.6)
     sec.top_margin = Cm(2.5)
     sec.bottom_margin = Cm(2.5)
+    # 封面不显示页码（首页页眉页脚独立）
+    sec.different_first_page_header_footer = True
 
     normal = doc.styles["Normal"]
     normal.font.name = BODY_FONT_EN
@@ -82,9 +84,10 @@ def add_page_number_footer(doc: Document) -> None:
 
 def h1(doc: Document, text: str) -> None:
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(18)
-    p.paragraph_format.space_after = Pt(10)
-    p.paragraph_format.line_spacing = Pt(28)
+    p.paragraph_format.page_break_before = True   # 每章另起一页
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(12)
+    p.paragraph_format.line_spacing = Pt(32)
     r = p.add_run(text)
     _set_run_font(r, 16, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
 
@@ -117,8 +120,8 @@ def para(doc: Document, text: str, indent: bool = True, align=None) -> None:
 
 def bullet(doc: Document, text: str) -> None:
     p = doc.add_paragraph()
-    p.paragraph_format.left_indent = Pt(24)
-    p.paragraph_format.first_line_indent = Pt(0)
+    p.paragraph_format.left_indent = Pt(36)
+    p.paragraph_format.first_line_indent = Pt(-12)   # 悬挂缩进，换行对齐到文字
     r = p.add_run("· " + text)
     _set_run_font(r, 12)
 
@@ -132,41 +135,107 @@ def caption(doc: Document, text: str) -> None:
     _set_run_font(r, 10.5, bold=True)
 
 
-def table(doc: Document, headers: list[str], rows: list[list[str]], cap: str | None = None) -> None:
+def table(doc: Document, headers: list[str], rows: list[list[str]], cap: str | None = None,
+          widths: list[float] | None = None) -> None:
     if cap:
-        caption(doc, cap)
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.keep_with_next = True
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after = Pt(4)
+        r = p.add_run(cap)
+        _set_run_font(r, 10.5, bold=True)
+
     t = doc.add_table(rows=1, cols=len(headers))
     t.style = "Table Grid"
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    t.autofit = False
+
+    # 列宽（未指定则按可用宽度平均分配）
+    text_w = 15.4
+    if widths is None:
+        widths = [text_w / len(headers)] * len(headers)
+    for i, w in enumerate(widths):
+        for cell in t.columns[i].cells:
+            cell.width = Cm(w)
+
     for i, h in enumerate(headers):
         cell = t.rows[0].cells[i]
         cell.text = ""
-        r = cell.paragraphs[0].add_run(h)
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        p.paragraph_format.space_before = Pt(2)
+        p.paragraph_format.space_after = Pt(2)
+        r = p.add_run(h)
         _set_run_font(r, 10.5, bold=True)
-        cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
     for row in rows:
         cells = t.add_row().cells
         for i, v in enumerate(row):
             cells[i].text = ""
-            r = cells[i].paragraphs[0].add_run(str(v))
+            p = cells[i].paragraphs[0]
+            p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+            p.paragraph_format.space_before = Pt(2)
+            p.paragraph_format.space_after = Pt(2)
+            r = p.add_run(str(v))
             _set_run_font(r, 10.5)
-    doc.add_paragraph()
+
+    # 尽量避免整表跨页（最后一行不加，否则会拖着后面的正文）
+    for row in t.rows[:-1]:
+        for cell in row.cells:
+            for p in cell.paragraphs:
+                p.paragraph_format.keep_with_next = True
+
+    # 表头行跨页重复 + 每行禁止被拆到两页
+    for idx, row in enumerate(t.rows):
+        trPr = row._tr.get_or_add_trPr()
+        cant = OxmlElement("w:cantSplit")
+        trPr.append(cant)
+        if idx == 0:
+            hdr = OxmlElement("w:tblHeader")
+            trPr.append(hdr)
+
+    sp = doc.add_paragraph()
+    sp.paragraph_format.space_before = Pt(0)
+    sp.paragraph_format.space_after = Pt(6)
+    sp.paragraph_format.line_spacing = Pt(6)
 
 
-def figure(doc: Document, filename: str, cap: str, width_cm: float = 14.5) -> None:
+def figure(doc: Document, filename: str, cap: str, width_cm: float = 14.0) -> None:
     path = FIG / filename
     if not path.is_file():
         para(doc, f"（缺图：{filename}）")
         return
-    doc.add_picture(str(path), width=Cm(width_cm))
-    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p = doc.add_paragraph()
+    pf = p.paragraph_format
+    # 关键：图片段落必须单倍行距，否则会被 Normal 的“固定 20 磅”裁成一条边
+    pf.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    pf.space_before = Pt(6)
+    pf.space_after = Pt(2)
+    pf.keep_with_next = True
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.add_run().add_picture(str(path), width=Cm(width_cm))
     caption(doc, cap)
 
 
 # ---------------------------------------------------------------- 封面 / 摘要
+def _bottom_border(cell) -> None:
+    tcPr = cell._tc.get_or_add_tcPr()
+    borders = OxmlElement("w:tcBorders")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "8")
+    bottom.set(qn("w:space"), "0")
+    bottom.set(qn("w:color"), "000000")
+    borders.append(bottom)
+    tcPr.append(borders)
+
+
 def cover(doc: Document) -> None:
-    for _ in range(3):
+    for _ in range(4):
         doc.add_paragraph()
+
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run("西 安 邮 电 大 学")
@@ -178,18 +247,35 @@ def cover(doc: Document) -> None:
     r = p.add_run("AI 全栈开发实验 · 项目总结报告")
     _set_run_font(r, 20, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
 
-    for _ in range(4):
+    for _ in range(5):
         doc.add_paragraph()
 
-    for label in ("项目名称：", "组　　号：", "组员信息：", "时　　间："):
-        p = doc.add_paragraph()
-        p.paragraph_format.left_indent = Cm(4.2)
-        r = p.add_run(label + "　" * 6)
-        _set_run_font(r, 14)
-        p.add_run("＿" * 18)
-        doc.add_paragraph()
+    labels = ["项目名称", "组　　号", "组员信息", "时　　间"]
+    t = doc.add_table(rows=len(labels), cols=2)
+    t.autofit = False
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for i, label in enumerate(labels):
+        row = t.rows[i]
+        row.height = Cm(1.0)
+        c0, c1 = row.cells
+        c0.width = Cm(3.6)
+        c1.width = Cm(9.6)
+        p0 = c0.paragraphs[0]
+        p0.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        r0 = p0.add_run(label + "：")
+        _set_run_font(r0, 14)
+        c0.vertical_alignment = WD_ALIGN_VERTICAL.BOTTOM
+        c1.vertical_alignment = WD_ALIGN_VERTICAL.BOTTOM
+        p1 = c1.paragraphs[0]
+        p1.paragraph_format.space_after = Pt(2)
+        _bottom_border(c1)
 
-    doc.add_page_break()
+    for _ in range(6):
+        doc.add_paragraph()
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run("2026 年 11 月")
+    _set_run_font(r, 12)
 
 
 def abstract(doc: Document) -> None:
@@ -220,7 +306,6 @@ def abstract(doc: Document) -> None:
     _set_run_font(r, 12, bold=True)
     r = p.add_run("目标检测；模型量化；大模型 Agent；LoRA 微调；LangChain；FastAPI；Vue 3")
     _set_run_font(r, 12)
-    doc.add_page_break()
 
 
 # ---------------------------------------------------------------- 第一、二章
@@ -373,6 +458,18 @@ def chapter3(doc: Document) -> None:
               "时效性 90，综合 92.8/100。另用 Data-Juicer 对同一批 122 篇语料做自动化策展对照："
               "六算子流水线耗时 134 s、输出 120 篇，而手工脚本 0.29 s——小语料下自动化不占优，"
               "但其参数化与可复现性在语料扩大后才有价值，这个结论也写进了报告。")
+    para(doc, "三类资产在下游的消费关系是明确的：检测集直接喂给实验 2 的训练脚本；"
+              "A2′ 权重进入实验 3 做量化与蒸馏；量化后的 ONNX 被实验 4 的检测接口加载；"
+              "解说语料一分为二——训练卷供实验 5 抽样微调，全量供 RAG 检索。"
+              "这条链路也解释了为什么数据版本必须可追溯：任何一次重训都会沿着链路影响下游全部指标。")
+    table(doc,
+          ["数据资产", "消费者", "消费方式"],
+          [["YOLO 检测集", "实验 2 / 实验 3", "训练、验证、量化校准"],
+           ["A2′ 权重", "实验 3 / 实验 4", "导出 ONNX、INT8 量化后上线"],
+           ["解说语料", "实验 5", "抽 100 条微调；全量建 RAG 索引"],
+           ["动作事件表", "实验 5（规划）", "事件→解说配对，供后续动作识别"]],
+          "表 3-3　数据资产与下游实验的对应关系",
+          widths=[4.2, 4.6, 6.6])
 
 
 def chapter4(doc: Document) -> None:
@@ -400,11 +497,24 @@ def chapter4(doc: Document) -> None:
               "容量从 n 升到 m 只多 0.6pp（M1−A2），代价却是参数量 3.2M → 25.9M，性价比不高；"
               "因此部署选型定在 A2 这一档。")
     table(doc,
+          ["超参", "取值", "说明"],
+          [["imgsz", "640", "与实验1标准化尺寸一致"],
+           ["batch", "16（M1 为 8）", "受显存限制"],
+           ["epochs / patience", "50 / 15", "早停，三组均在第 43–50 轮收敛"],
+           ["optimizer / lr", "SGD / 0.01", "ultralytics 默认，配合余弦调度"],
+           ["cos_lr / AMP", "True / True", "平滑收敛、省显存"],
+           ["seed", "42", "三组一致，保证可比"]],
+          "表 4-1　训练超参（三组共用）",
+          widths=[3.6, 4.2, 7.6])
+    para(doc, "训练过程的观察也值得记录：A1 因为样本少，验证集 loss 在第 20 轮后开始震荡，早停在 49 轮；"
+              "A2 与 M1 的收敛更平稳，但 M1 在 batch=8 下每轮耗时约为 A2 的两倍，"
+              "这也是“容量换精度”在工程上不划算的另一面——训练成本同样要计入选型。")
+    table(doc,
           ["组", "模型", "训练数据", "参数量(M)", "mAP50", "mAP50-95"],
           [["A1", "YOLOv8n", "原始 2,158 帧", "3.2", "0.371", "0.245"],
            ["A2", "YOLOv8n", "增强 4,316 帧", "3.2", "0.418", "0.262"],
            ["M1", "YOLOv8m", "增强 4,316 帧", "25.9", "0.424", "0.271"]],
-          "表 4-1　实验 2 三组对比（v1 口径，test 380）")
+          "表 4-2　实验 2 三组对比（v1 口径，test 380）")
     para(doc, "中期复核时发现实验 1 的增强缺陷（见 3.4），三组模型全部在同一协议下重训，并把测试集统一到"
               "“clean190 原始帧”这一单一口径：A1′ 0.990、A2′ 0.992、M1′ 0.993，INT8 量化后 0.990。"
               "新旧口径不能混用，报告中凡涉及精度的地方均标注口径。这一“发现缺陷—重做—统一口径”的过程本身，"
