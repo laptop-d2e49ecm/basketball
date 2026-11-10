@@ -233,44 +233,83 @@ def _bottom_border(cell) -> None:
 
 
 def cover(doc: Document) -> None:
-    for _ in range(4):
+    """按学校模板封面复刻：校名 / 实验名 / 项目总结报告 / 项目名称 / 组号 /
+    组员信息（学号-姓名-分工 小表）/ 时间。"""
+    for _ in range(2):
         doc.add_paragraph()
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run("西 安 邮 电 大 学")
-    _set_run_font(r, 26, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
+    _set_run_font(r, 28, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
 
     doc.add_paragraph()
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run("AI 全栈开发实验 · 项目总结报告")
-    _set_run_font(r, 20, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
+    r = p.add_run("AI 全栈开发实验")
+    _set_run_font(r, 22, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
 
-    for _ in range(5):
+    doc.add_paragraph()
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run("项目总结报告")
+    _set_run_font(r, 18, bold=True, cn=HEAD_FONT, en=HEAD_FONT)
+
+    for _ in range(3):
         doc.add_paragraph()
 
-    labels = ["项目名称", "组　　号", "组员信息", "时　　间"]
-    t = doc.add_table(rows=len(labels), cols=2)
-    t.autofit = False
-    t.alignment = WD_TABLE_ALIGNMENT.CENTER
-    for i, label in enumerate(labels):
-        row = t.rows[i]
+    def field_row(label: str) -> None:
+        t = doc.add_table(rows=1, cols=2)
+        t.autofit = False
+        t.alignment = WD_TABLE_ALIGNMENT.CENTER
+        row = t.rows[0]
         row.height = Cm(1.0)
         c0, c1 = row.cells
-        c0.width = Cm(3.6)
-        c1.width = Cm(9.6)
+        c0.width = Cm(3.4)
+        c1.width = Cm(10.4)
         p0 = c0.paragraphs[0]
         p0.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        p0.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
         r0 = p0.add_run(label + "：")
         _set_run_font(r0, 14)
         c0.vertical_alignment = WD_ALIGN_VERTICAL.BOTTOM
         c1.vertical_alignment = WD_ALIGN_VERTICAL.BOTTOM
-        p1 = c1.paragraphs[0]
-        p1.paragraph_format.space_after = Pt(2)
         _bottom_border(c1)
 
-    for _ in range(6):
+    field_row("项目名称")
+    field_row("组　　号")
+
+    p = doc.add_paragraph()
+    p.paragraph_format.left_indent = Cm(4.1)
+    p.paragraph_format.space_before = Pt(10)
+    p.paragraph_format.space_after = Pt(4)
+    r = p.add_run("组员信息：")
+    _set_run_font(r, 14)
+
+    members = doc.add_table(rows=1, cols=3)
+    members.style = "Table Grid"
+    members.autofit = False
+    members.alignment = WD_TABLE_ALIGNMENT.CENTER
+    headers = [("学号", 4.6), ("姓名", 3.2), ("分工", 6.0)]
+    for j, (h, w) in enumerate(headers):
+        cell = members.rows[0].cells[j]
+        cell.width = Cm(w)
+        pc = cell.paragraphs[0]
+        pc.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        pc.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        rr = pc.add_run(h)
+        _set_run_font(rr, 10.5, bold=True)
+    for _ in range(5):
+        cells = members.add_row().cells
+        for j in range(3):
+            pc = cells[j].paragraphs[0]
+            pc.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+            pc.add_run("")
+
+    doc.add_paragraph()
+    field_row("时　　间")
+
+    for _ in range(3):
         doc.add_paragraph()
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -359,7 +398,7 @@ def chapter2(doc: Document) -> None:
               "云端 Kaggle T4 负责检测模型的训练与蒸馏。两边的指标口径在报告中分别标注，不混用。")
     table(doc,
           ["环境", "配置", "承担的工作"],
-          [["本地笔记本", "Windows 11；NVIDIA RTX 5060 Laptop 8 GB（驱动 591.97）；CPU 为 AMD Ryzen 7 系列",
+          [["本地笔记本", "Windows 11 家庭中文版；AMD Ryzen 9 7945HX（16 核）；16 GB 内存；NVIDIA RTX 5060 Laptop 8 GB（驱动 591.97）",
             "数据清洗、ONNX 量化、前后端开发、Agent 集成、QLoRA 微调"],
            ["云端 Kaggle", "Tesla T4 ×2（16 GB ×2）", "YOLOv8 训练（A1/A2/M1）、知识蒸馏"],
            ["推理设备", "CPU（部署默认）与 GPU（可选）", "实验 4/5 的服务端推理，默认 CPU 即可跑通"]],
@@ -686,7 +725,7 @@ def chapter7(doc: Document) -> None:
               "此前首页默认进视频页，从首页根本看不到 AI 解说入口，这是本轮修掉的一个真实体验缺陷。"
               "页面包含气泡区、可展开的工具过程条、快捷提问、会话信息与“开始新会话”，"
               "错误按契约区分并给出重试按钮，移动端 390×844 下气泡不溢出。")
-    figure(doc, "agent_01_image.png", "图 7-2　/agent 场景一：图像路径 → 检测工具", 14.5)
+    figure(doc, "agent_01_image.png", "图 7-2　/agent 场景一：图像路径 → 检测工具", 13.0)
     para(doc, "端到端测试覆盖任务书三场景：图像（f000005→10 名球员）、文本（抢断句→抢断）、多轮（概念问答→追问）。"
               "延迟方面，同一批 10 条问句：ChatAnywhere 中转均值 49.96 s、P95 186 s（10 轮里 7 轮超 5 秒）；"
               "DeepSeek 官方直连均值 1.77 s、P95 2.20 s、0 轮超 5 秒。这组对照说明——"
@@ -696,7 +735,7 @@ def chapter7(doc: Document) -> None:
           [["ChatAnywhere 中转", "deepseek-v4.1-flash-1017", "49.96 s", "186.0 s", "7/10"],
            ["DeepSeek 官方直连", "deepseek-chat", "1.77 s", "2.20 s", "0/10"]],
           "表 7-3　两口径端到端延迟")
-    figure(doc, "agent_05_error_retry.png", "图 7-3　错误态：失败提示与重试按钮", 14.0)
+    figure(doc, "agent_05_error_retry.png", "图 7-3　错误态：失败提示与重试按钮", 12.0)
 
 
 def chapter8(doc: Document) -> None:
@@ -759,7 +798,7 @@ def chapter8(doc: Document) -> None:
           "表 8-4　任务书指标对照")
     para(doc, "总体判断：功能类指标全部达标，性能类指标在“直连”口径下大幅达标、在“中转”口径下不达标，"
               "这一差异本身是项目最有价值的发现之一——它说明部署链路的选型比模型选型更能决定用户体感。")
-    figure(doc, "firefox_agent_chat.png", "图 8-1　Firefox 下的 /agent 交互（10 名球员 / 81ms / 4.4s）", 14.0)
+    figure(doc, "firefox_agent_chat.png", "图 8-1　Firefox 下的 /agent 交互（10 名球员 / 81ms / 4.4s）", 13.0)
 
 
 def chapter9(doc: Document) -> None:
