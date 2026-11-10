@@ -1,0 +1,88 @@
+{
+  "model": "deepseek-chat",
+  "n": 10,
+  "joblib_accuracy": 1.0,
+  "zeroshot_accuracy": 0.9,
+  "rows": [
+    {
+      "id": 1,
+      "gold": "罚球",
+      "text": "沃特森上罚球线！！",
+      "joblib_pred": "罚球",
+      "zeroshot_raw": "罚球",
+      "zeroshot_pred": "罚球"
+    },
+    {
+      "id": 2,
+      "gold": "犯规违例",
+      "text": "拿球又走步了！！",
+      "joblib_pred": "犯规违例",
+      "zeroshot_raw": "犯规违例",
+      "zeroshot_pred": "犯规违例"
+    },
+    {
+      "id": 3,
+      "gold": "暂停换人",
+      "text": "骑士换人了！！海佐尼亚上来了！！",
+      "joblib_pred": "暂停换人",
+      "zeroshot_raw": "暂停换人",
+      "zeroshot_pred": "暂停换人"
+    },
+    {
+      "id": 4,
+      "gold": "抢断",
+      "text": "贺思瑶断球！！",
+      "joblib_pred": "抢断",
+      "zeroshot_raw": "抢断",
+      "zeroshot_pred": "抢断"
+    },
+    {
+      "id": 5,
+      "gold": "盖帽",
+      "text": "布莱恩特协防大帽！！",
+      "joblib_pred": "盖帽",
+      "zeroshot_raw": "盖帽",
+      "zeroshot_pred": "盖帽"
+    },
+    {
+      "id": 6,
+      "gold": "篮板",
+      "text": "埃纳鲁纳篮板！给快下海佐尼亚！！",
+      "joblib_pred": "篮板",
+      "zeroshot_raw": "篮板",
+      "zeroshot_pred": "篮板"
+    },
+    {
+      "id": 7,
+      "gold": "助攻传球",
+      "text": "分球贾明儒！！",
+      "joblib_pred": "助攻传球",
+      "zeroshot_raw": "助攻传球",
+      "zeroshot_pred": "助攻传球"
+    },
+    {
+      "id": 8,
+      "gold": "投篮",
+      "text": "托马斯左侧接球三分！",
+      "joblib_pred": "投篮",
+      "zeroshot_raw": "投篮",
+      "zeroshot_pred": "投篮"
+    },
+    {
+      "id": 9,
+      "gold": "比分局势",
+      "text": "第一节结束！山西领先11分！",
+      "joblib_pred": "比分局势",
+      "zeroshot_raw": "比分局势",
+      "zeroshot_pred": "比分局势"
+    },
+    {
+      "id": 10,
+      "gold": "阵容战术",
+      "text": "借掩护加速突破！",
+      "joblib_pred": "阵容战术",
+      "zeroshot_raw": "投篮",
+      "zeroshot_pred": "投篮"
+    }
+  ]
+}

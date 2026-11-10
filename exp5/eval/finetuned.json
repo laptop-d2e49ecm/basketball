@@ -1,0 +1,193 @@
+{
+  "model": "C:\\sofeware\\AI Api\\dsh workspace\\fish\\work\\models\\Qwen3-1.7B",
+  "adapter": "C:\\sofeware\\AI Api\\dsh workspace\\fish\\work\\basketball-git\\exp5\\adapters\\qwen3-1.7b-lora",
+  "n": 10,
+  "local_base_accuracy": 0.8,
+  "local_lora_accuracy": 1.0,
+  "local_base_seconds_mean": 0.19,
+  "local_lora_seconds_mean": 0.21,
+  "base_rows": [
+    {
+      "id": 1,
+      "gold": "罚球",
+      "text": "沃特森上罚球线！！",
+      "raw": "罚球",
+      "clean": "罚球",
+      "pred": "罚球",
+      "seconds": 0.64
+    },
+    {
+      "id": 2,
+      "gold": "犯规违例",
+      "text": "拿球又走步了！！",
+      "raw": "走步",
+      "clean": "走步",
+      "pred": "",
+      "seconds": 0.15
+    },
+    {
+      "id": 3,
+      "gold": "暂停换人",
+      "text": "骑士换人了！！海佐尼亚上来了！！",
+      "raw": "暂停换人",
+      "clean": "暂停换人",
+      "pred": "暂停换人",
+      "seconds": 0.19
+    },
+    {
+      "id": 4,
+      "gold": "抢断",
+      "text": "贺思瑶断球！！",
+      "raw": "抢断",
+      "clean": "抢断",
+      "pred": "抢断",
+      "seconds": 0.14
+    },
+    {
+      "id": 5,
+      "gold": "盖帽",
+      "text": "布莱恩特协防大帽！！",
+      "raw": "盖帽",
+      "clean": "盖帽",
+      "pred": "盖帽",
+      "seconds": 0.14
+    },
+    {
+      "id": 6,
+      "gold": "篮板",
+      "text": "埃纳鲁纳篮板！给快下海佐尼亚！！",
+      "raw": "篮板",
+      "clean": "篮板",
+      "pred": "篮板",
+      "seconds": 0.1
+    },
+    {
+      "id": 7,
+      "gold": "助攻传球",
+      "text": "分球贾明儒！！",
+      "raw": "助攻传球",
+      "clean": "助攻传球",
+      "pred": "助攻传球",
+      "seconds": 0.14
+    },
+    {
+      "id": 8,
+      "gold": "投篮",
+      "text": "托马斯左侧接球三分！",
+      "raw": "投篮",
+      "clean": "投篮",
+      "pred": "投篮",
+      "seconds": 0.15
+    },
+    {
+      "id": 9,
+      "gold": "比分局势",
+      "text": "第一节结束！山西领先11分！",
+      "raw": "比分局势",
+      "clean": "比分局势",
+      "pred": "比分局势",
+      "seconds": 0.14
+    },
+    {
+      "id": 10,
+      "gold": "阵容战术",
+      "text": "借掩护加速突破！",
+      "raw": "突破",
+      "clean": "突破",
+      "pred": "",
+      "seconds": 0.1
+    }
+  ],
+  "lora_rows": [
+    {
+      "id": 1,
+      "gold": "罚球",
+      "text": "沃特森上罚球线！！",
+      "raw": "罚球",
+      "clean": "罚球",
+      "pred": "罚球",
+      "seconds": 0.21
+    },
+    {
+      "id": 2,
+      "gold": "犯规违例",
+      "text": "拿球又走步了！！",
+      "raw": "犯规违例",
+      "clean": "犯规违例",
+      "pred": "犯规违例",
+      "seconds": 0.28
+    },
+    {
+      "id": 3,
+      "gold": "暂停换人",
+      "text": "骑士换人了！！海佐尼亚上来了！！",
+      "raw": "暂停换人",
+      "clean": "暂停换人",
+      "pred": "暂停换人",
+      "seconds": 0.27
+    },
+    {
+      "id": 4,
+      "gold": "抢断",
+      "text": "贺思瑶断球！！",
+      "raw": "抢断",
+      "clean": "抢断",
+      "pred": "抢断",
+      "seconds": 0.2
+    },
+    {
+      "id": 5,
+      "gold": "盖帽",
+      "text": "布莱恩特协防大帽！！",
+      "raw": "盖帽",
+      "clean": "盖帽",
+      "pred": "盖帽",
+      "seconds": 0.2
+    },
+    {
+      "id": 6,
+      "gold": "篮板",
+      "text": "埃纳鲁纳篮板！给快下海佐尼亚！！",
+      "raw": "篮板",
+      "clean": "篮板",
+      "pred": "篮板",
+      "seconds": 0.14
+    },
+    {
+      "id": 7,
+      "gold": "助攻传球",
+      "text": "分球贾明儒！！",
+      "raw": "助攻传球",
+      "clean": "助攻传球",
+      "pred": "助攻传球",
+      "seconds": 0.2
+    },
+    {
+      "id": 8,
+      "gold": "投篮",
+      "text": "托马斯左侧接球三分！",
+      "raw": "投篮",
+      "clean": "投篮",
+      "pred": "投篮",
+      "seconds": 0.2
+    },
+    {
+      "id": 9,
+      "gold": "比分局势",
+      "text": "第一节结束！山西领先11分！",
+      "raw": "比分局势",
+      "clean": "比分局势",
+      "pred": "比分局势",
+      "seconds": 0.21
+    },
+    {
+      "id": 10,
+      "gold": "阵容战术",
+      "text": "借掩护加速突破！",
+      "raw": "阵容战术",
+      "clean": "阵容战术",
+      "pred": "阵容战术",
+      "seconds": 0.21
+    }
+  ]
+}

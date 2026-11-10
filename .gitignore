@@ -77,3 +77,7 @@ exp4/backend/static/
 /交接说明_必读.md
 /数据集下载链接.txt
 
+
+# 实验5：LoRA 适配器（~23MB/个，走网盘分发，不进 git）
+exp5/adapters/
+exp5/adapters/_trainer_tmp/

@@ -278,7 +278,7 @@ def main() -> int:
     finetune = []
     for label, text in cls_pairs:
         finetune.append({
-            "instruction": "你是篮球解说文本分析助手。判断下面这句解说属于哪个动作类别，只输出类别名（10 类之一），不要解释。",
+            "instruction": "判断下面这句篮球解说的动作类别，只输出类别名，不要解释。可选类别：罚球、犯规违例、暂停换人、抢断、盖帽、篮板、助攻传球、投篮、比分局势、阵容战术",
             "input": text,
             "output": label,
         })
