@@ -64,16 +64,24 @@ class LoraCommentaryClassifier:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        bnb = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
-        )
-        model = AutoModelForCausalLM.from_pretrained(
-            str(self.base_path), quantization_config=bnb, device_map="auto",
-            torch_dtype=torch.bfloat16, trust_remote_code=True,
-        )
+        # 量化方式可切：EXP5_LORA_QUANT=4bit（默认）| fp16
+        self.quant = (cfg.get("EXP5_LORA_QUANT", "4bit") or "4bit").strip().lower()
+        if self.quant == "fp16":
+            model = AutoModelForCausalLM.from_pretrained(
+                str(self.base_path), device_map="auto",
+                torch_dtype=torch.float16, trust_remote_code=True,
+            )
+        else:
+            bnb = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+            )
+            model = AutoModelForCausalLM.from_pretrained(
+                str(self.base_path), quantization_config=bnb, device_map="auto",
+                torch_dtype=torch.bfloat16, trust_remote_code=True,
+            )
         self.model = PeftModel.from_pretrained(model, str(self.adapter_path))
         self.model.eval()
 

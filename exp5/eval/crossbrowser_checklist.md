@@ -25,6 +25,13 @@
 | `/text` | ✅ 渲染正常 | `firefox_text.png` |
 | `/match` | ✅ 渲染正常 | `firefox_match.png` |
 
+## 2b. Firefox 交互（用户手动验证，2026-11-10 23:02）
+
+- 输入 000005 这张图里有几个球员？ → 回复"检测到 10 名球员，平均置信度 0.89，80.5ms"
+- 工具条显示"球员检测 · 成功 · 81ms"，本轮 4.4s，会话 ID sess_acc8b21bcb2
+- 截图存档：
+eport/figures/firefox_agent_chat.png
+
 ## 3. 未能自动化的部分（如实记录）
 
 **Firefox 的"交互"（输入 + 点发送）无法在本环境自动化**：
@@ -33,7 +40,7 @@
 - Selenium + geckodriver（Marionette）：新建会话时 `Process unexpectedly closed with status 1`；
 - 但 **`firefox --headless --screenshot` 可用**（2 秒出图），说明 Firefox 本身能跑、能渲染，限制在自动化协议这条通道上。
 
-**留给本机手动的只有一步**（布局已由截图证明，只需验证交互）：
+**交互已由用户手动验证通过**（见 2b）。当时给出的手动清单：
 
 1. 用 Firefox 打开 `http://127.0.0.1:5173/agent`
 2. 输入 `f000005 这张图里有几个球员？` → 发送
