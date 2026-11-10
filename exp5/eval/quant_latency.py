@@ -46,6 +46,7 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["4bit", "fp16"], required=True)
+    ap.add_argument("--rounds", type=int, default=1, help="重复轮数（每轮跑一遍 10 句）")
     args = ap.parse_args()
 
     tok = AutoTokenizer.from_pretrained(str(MODEL), trust_remote_code=True)
@@ -69,22 +70,33 @@ def main() -> int:
     torch.cuda.reset_peak_memory_stats()
 
     times = []
-    for text in TEXTS:
-        prompt = tok.apply_chat_template(
-            [{"role": "user", "content": build_prompt(text)}],
-            tokenize=False, add_generation_prompt=True) + "<think>\n\n</think>\n\n"
-        inputs = tok(prompt, return_tensors="pt").to(model.device)
-        with torch.no_grad():
-            t1 = time.perf_counter()
-            model.generate(**inputs, max_new_tokens=8, do_sample=False,
-                           pad_token_id=tok.eos_token_id)
-            times.append(round((time.perf_counter() - t1) * 1000, 1))
+    round_means = []
+    for _round in range(args.rounds):
+        rt = []
+        for text in TEXTS:
+            prompt = tok.apply_chat_template(
+                [{"role": "user", "content": build_prompt(text)}],
+                tokenize=False, add_generation_prompt=True) + "<think>\n\n</think>\n\n"
+            inputs = tok(prompt, return_tensors="pt").to(model.device)
+            with torch.no_grad():
+                t1 = time.perf_counter()
+                model.generate(**inputs, max_new_tokens=8, do_sample=False,
+                               pad_token_id=tok.eos_token_id)
+                dt = round((time.perf_counter() - t1) * 1000, 1)
+            rt.append(dt)
+            times.append(dt)
+        round_means.append(round(st.mean(rt), 1))
 
     mean_ms = round(st.mean(times), 1)
     p95 = sorted(times)[max(0, int(round(0.95 * (len(times) - 1))))]
     peak_gb = round(torch.cuda.max_memory_allocated() / 1024**3, 2)
+    import statistics as _st
     rec = {
-        "mode": args.mode, "load_seconds": round(load_s, 1),
+        "mode": args.mode, "rounds": args.rounds,
+        "round_means_ms": round_means,
+        "mean_across_rounds_ms": round(_st.mean(round_means), 1) if round_means else None,
+        "std_across_rounds_ms": round(_st.stdev(round_means), 1) if len(round_means) > 1 else 0.0,
+        "load_seconds": round(load_s, 1),
         "mean_ms": mean_ms, "p95_ms": p95, "median_ms": round(st.median(times), 1),
         "min_ms": min(times), "max_ms": max(times),
         "peak_vram_gb": peak_gb, "per_item_ms": times,
