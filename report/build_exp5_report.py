@@ -146,7 +146,7 @@ def caption(doc: Document, text: str) -> None:
 
 
 def table(doc: Document, headers: list[str], rows: list[list[str]], cap: str | None = None,
-          widths: list[float] | None = None) -> None:
+          widths: list[float] | None = None, spacer: bool = True) -> None:
     if cap:
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -206,10 +206,11 @@ def table(doc: Document, headers: list[str], rows: list[list[str]], cap: str | N
             hdr = OxmlElement("w:tblHeader")
             trPr.append(hdr)
 
-    sp = doc.add_paragraph()
-    sp.paragraph_format.space_before = Pt(0)
-    sp.paragraph_format.space_after = Pt(6)
-    sp.paragraph_format.line_spacing = Pt(6)
+    if spacer:
+        sp = doc.add_paragraph()
+        sp.paragraph_format.space_before = Pt(0)
+        sp.paragraph_format.space_after = Pt(6)
+        sp.paragraph_format.line_spacing = Pt(6)
 
 
 def figure(doc: Document, filename: str, cap: str, width_cm: float = 14.0) -> None:
@@ -271,7 +272,15 @@ def cover(doc: Document) -> None:
     def field_row(label: str) -> None:
         t = doc.add_table(rows=1, cols=2)
         t.autofit = False
-        t.alignment = WD_TABLE_ALIGNMENT.CENTER
+        t.alignment = WD_TABLE_ALIGNMENT.LEFT
+        tblPr = t._tbl.tblPr
+        tblW = OxmlElement("w:tblW")
+        tblW.set(qn("w:w"), str(int(13.8 / 2.54 * 1440)))  # 3.4 + 10.4
+        tblW.set(qn("w:type"), "dxa")
+        tblPr.append(tblW)
+        layout = OxmlElement("w:tblLayout")
+        layout.set(qn("w:type"), "fixed")
+        tblPr.append(layout)
         row = t.rows[0]
         row.height = Cm(1.0)
         c0, c1 = row.cells
@@ -290,7 +299,8 @@ def cover(doc: Document) -> None:
     field_row("组　　号")
 
     p = doc.add_paragraph()
-    p.paragraph_format.left_indent = Cm(4.1)
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p.paragraph_format.right_indent = Cm(12.0)   # 让标签右端与 3.4cm 标签列对齐
     p.paragraph_format.space_before = Pt(10)
     p.paragraph_format.space_after = Pt(4)
     r = p.add_run("组员信息：")
@@ -299,8 +309,23 @@ def cover(doc: Document) -> None:
     members = doc.add_table(rows=1, cols=3)
     members.style = "Table Grid"
     members.autofit = False
-    members.alignment = WD_TABLE_ALIGNMENT.CENTER
-    headers = [("学号", 4.6), ("姓名", 3.2), ("分工", 6.0)]
+    members.alignment = WD_TABLE_ALIGNMENT.LEFT
+    # 与上面三条横线左端对齐：缩进 3.4cm，总宽 10.4cm
+    tblPr = members._tbl.tblPr
+    tbl_ind = OxmlElement("w:tblInd")
+    tbl_ind.set(qn("w:w"), str(int(3.4 / 2.54 * 1440)))
+    tbl_ind.set(qn("w:type"), "dxa")
+    tblPr.append(tbl_ind)
+    # 固定表格布局与总宽，避免 Word 自动撑到页宽
+    tblW = OxmlElement("w:tblW")
+    tblW.set(qn("w:w"), str(int(10.4 / 2.54 * 1440)))
+    tblW.set(qn("w:type"), "dxa")
+    tblPr.append(tblW)
+    layout = OxmlElement("w:tblLayout")
+    layout.set(qn("w:type"), "fixed")
+    tblPr.append(layout)
+
+    headers = [("学号", 3.6), ("姓名", 2.8), ("分工", 4.0)]
     for j, (h, w) in enumerate(headers):
         cell = members.rows[0].cells[j]
         cell.width = Cm(w)
@@ -311,6 +336,8 @@ def cover(doc: Document) -> None:
         _set_run_font(rr, 10.5, bold=True)
     for _ in range(5):
         cells = members.add_row().cells
+        for j, w in enumerate([3.6, 2.8, 4.0]):
+            cells[j].width = Cm(w)
         for j in range(3):
             pc = cells[j].paragraphs[0]
             pc.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
@@ -422,6 +449,15 @@ def chapter1(doc: Document) -> None:
     bullet(doc, "实验 3：在精度不显著下降的前提下，把检测模型压到 4 MB 以内，并给出误差结构分析。")
     bullet(doc, "实验 4：交付可运行的前后端系统，接口体系统一、错误码统一、页面在三个断点下可用。")
     bullet(doc, "实验 5：在系统上接入大模型 Agent，工具调用准确率 ≥90%、端到端 ≤5 s，并完成一次真实微调。")
+    table(doc,
+          ["实验", "输入", "主要产出"],
+          [["1 数据采集", "公开数据集、直播接口", "526 段视频、5,042 帧检测集、40,376 条解说语料"],
+           ["2 模型训练", "检测集（原始/增强）", "A1/A2/M1 三组权重与对比结论"],
+           ["3 算法优化", "A2′ 权重", "3.5 MB INT8 模型、蒸馏学生、部署矩阵"],
+           ["4 前后端", "检测模型 + 数据资产", "五页前端、12 个接口、视频 Worker"],
+           ["5 Agent", "实验4 接口 + 解说语料", "5 个工具、/agent 对话页、LoRA 适配器"]],
+          "表 1-1　五个实验的输入与产出",
+          widths=[3.0, 5.2, 7.2])
     para(doc, "预期成果是一套“能演示、能复现、能讲清取舍”的系统：一条命令起服务，一个页面走完主流程，"
               "一份报告说清每个数字从哪来。")
 
@@ -695,7 +731,7 @@ def chapter6(doc: Document) -> None:
            ["后端测试", "pytest", "14 项全绿"],
            ["前端单测", "vitest", "坐标契约 2 项"],
            ["浏览器 e2e", "Playwright", "24 项通过"]],
-          "表 6-2　实验 4 性能与测试记录")
+          "表 6-2　实验 4 性能与测试记录", spacer=False)
 
 
 def chapter7(doc: Document) -> None:
@@ -771,7 +807,6 @@ def chapter7(doc: Document) -> None:
           [["ChatAnywhere 中转", "deepseek-v4.1-flash-1017", "49.96 s", "186.0 s", "7/10"],
            ["DeepSeek 官方直连", "deepseek-chat", "1.77 s", "2.20 s", "0/10"]],
           "表 7-3　两口径端到端延迟")
-    figure(doc, "agent_05_error_retry.png", "图 7-3　错误态：失败提示与重试按钮", 12.0)
 
 
 def chapter8(doc: Document) -> None:
@@ -791,6 +826,7 @@ def chapter8(doc: Document) -> None:
     para(doc, "异常处理单独做了真实故障验证：把 EXP5_LLM_TIMEOUT 设为 0.3 s 打真实接口，3 次请求全部返回 504 与"
               "“AI 响应超时，请重试”；把 key 换成无效值重启后端，前端显示“AI 服务暂时不可用，点下面「重试」再来一次”，"
               "并出现“重试上一句”按钮。")
+    figure(doc, "agent_05_error_retry.png", "图 8-1　错误态：失败提示与重试按钮", 11.0)
 
     h2(doc, "8.2　性能测试")
     para(doc, "性能分三个层次记录，避免把“模型耗时”当成“Agent 响应时间”：")
@@ -834,7 +870,7 @@ def chapter8(doc: Document) -> None:
           "表 8-4　任务书指标对照")
     para(doc, "总体判断：功能类指标全部达标，性能类指标在“直连”口径下大幅达标、在“中转”口径下不达标，"
               "这一差异本身是项目最有价值的发现之一——它说明部署链路的选型比模型选型更能决定用户体感。")
-    figure(doc, "firefox_agent_chat.png", "图 8-1　Firefox 下的 /agent 交互（10 名球员 / 81ms / 4.4s）", 13.0)
+    figure(doc, "firefox_agent_chat.png", "图 8-2　Firefox 下的 /agent 交互（10 名球员 / 81ms / 4.4s）", 13.0)
 
 
 def chapter9(doc: Document) -> None:
