@@ -39,25 +39,88 @@ LABELS = [label for label, _ in RULES]
 OTHER = "其他"
 
 # 生成题的局面细节（动作类型 → 场上细节）
-DETAILS: dict[str, list[str]] = {
-    "投篮": ["三分出手", "中距离急停跳投", "突破上篮", "快攻扣篮"],
-    "助攻传球": ["击地传球", "长传快攻", "手递手配合"],
-    "篮板": ["前场篮板", "后场篮板"],
-    "抢断": ["中场抢断", "边线断球"],
-    "盖帽": ["追身封盖", "篮下大帽"],
-    "罚球": ["两罚全中", "两罚一中"],
-    "犯规违例": ["进攻犯规", "走步违例"],
-    "暂停换人": ["请求暂停", "换人调整"],
-    "比分局势": ["分差被拉开", "比分追平"],
-    "阵容战术": ["换防", "挡拆配合"],
-}
+def derive_detail(label: str, sentence: str) -> str:
+    """从解说句本身反推"场上细节"，保证 事件描述 ↔ 解说句 语义一致。
+
+    （手册要求 input 的事件类型与 output 解说句同类；若凭空指定细节，
+      容易出现"事件=长传、解说=击地"这种同大类但不同动作的错配。）
+    """
+    if label == "助攻传球":
+        if "击地" in sentence:
+            return "击地传球"
+        if "长传" in sentence:
+            return "长传快攻"
+        if "手递手" in sentence:
+            return "手递手配合"
+        return "转移球"
+    if label == "暂停换人":
+        return "换人调整" if re.search(r"换人|替补|登场|换上|首发", sentence) else "请求暂停"
+    if label == "盖帽":
+        return "追身封盖" if re.search(r"追防|追身", sentence) else "篮下大帽"
+    if label == "篮板":
+        if "前场板" in sentence:
+            return "前场篮板"
+        if re.search(r"后场板|防守篮板", sentence):
+            return "后场篮板"
+        return "篮板拼抢"
+    if label == "投篮":
+        if "三分" in sentence or "3分" in sentence:
+            return "三分出手"
+        if "上篮" in sentence or "挑篮" in sentence:
+            return "突破上篮"
+        if "扣" in sentence:
+            return "快攻扣篮"
+        if "跳投" in sentence or "后仰" in sentence:
+            return "中距离急停跳投"
+        return "出手投篮"
+    if label == "犯规违例":
+        if "走步" in sentence:
+            return "走步违例"
+        if "违例" in sentence:
+            return "违例"
+        if "and one" in sentence.lower():
+            return "投篮犯规"
+        return "进攻犯规" if "进攻犯规" in sentence else "防守犯规"
+    if label == "抢断":
+        return "边线断球" if re.search(r"边线|出界", sentence) else "中场抢断"
+    if label == "罚球":
+        if "加罚" in sentence:
+            return "加罚"
+        return "两罚" if "两罚" in sentence else "罚球"
+    if label == "比分局势":
+        if "反超" in sentence:
+            return "比分反超"
+        if "追平" in sentence or "扳平" in sentence:
+            return "比分追平"
+        if "打停" in sentence:
+            return "打停对手"
+        if "领先" in sentence:
+            return "比分领先"
+        if "落后" in sentence:
+            return "比分落后"
+        if "拉开" in sentence:
+            return "分差被拉开"
+        if re.search(r"差距|胶着|接近", sentence):
+            return "比分胶着"
+        return "比分变化"
+    if label == "阵容战术":
+        if "挡拆" in sentence:
+            return "挡拆配合"
+        if "掩护" in sentence:
+            return "无球掩护"
+        if "包夹" in sentence or "夹击" in sentence:
+            return "包夹防守"
+        if "联防" in sentence or "盯人" in sentence:
+            return "联防盯人"
+        return "换防"
+    return label
 CONTEXTS = [
-    "第四节最后两分钟，比分胶着",
-    "开局阶段，双方都在试探",
-    "第三节中段，主队落后 8 分",
+    "第四节最后两分钟",
+    "开局阶段",
+    "第三节中段",
     "暂停回来后的第一次进攻",
-    "比赛还剩 10 秒，平分",
-    "第二节替补轮换阶段",
+    "比赛最后 10 秒",
+    "第二节轮换时间",
 ]
 
 
@@ -76,12 +139,32 @@ NOISE = [
     re.compile(r"[\]]\s*[^\[\]]*\s*\["),       # 带比分标签的长行
     re.compile(r"^\s*[^\s：:]{1,8}[：:]"),      # "某某：……" 记者/网友发言
     re.compile(r"首发[：:]"),                   # 首发名单
+    re.compile(r"加回来|扣掉1分|最终比分|判罚更改"),  # 赛后改分/判罚更正
+    re.compile(r"不好意思|抱歉|说错了|打错了"),          # 口误更正
 ]
 
 # 人工核对时发现的预标错误（关键词命中但动作不是它）
 MANUAL_FIX = {
     "罚球线！顶开人！跳投得分！[马刺49-56太阳]": "投篮",
     "罚球线后仰的跳投压哨两分潇洒进！！！[鹈鹕51-53热火]": "投篮",
+    # 段3 审计（audit_data.py 逐条复核）后修正：关键词命中但不是该动作
+    "首发五人组！乌度卡弧顶指挥KD、申京、小贾、阿门、范乔丹跑战术": "阵容战术",
+    "躲开封盖！！": "投篮",
+    "接传球！起飞Slammmmmm Dunk！！[老鹰100-94步行者]": "投篮",
+    "弧顶稳住！": "阵容战术",
+    "拉开距离！": "阵容战术",
+    "远端拉开！": "阵容战术",
+    "分球被断！": "抢断",
+    "拉开背身打！": "阵容战术",
+    "拉开空间！！": "阵容战术",
+    "拉开面筐突！": "阵容战术",
+    "老鹰稳住！！找右侧底角弗莱明斯！！": "阵容战术",
+}
+
+# 审计中判定为无教学价值的样本（比赛计时/统计碎片），直接剔除
+DROP = {
+    "2分23！",
+    "3分5！！",
 }
 FIXED_COUNT = 0
 
@@ -106,7 +189,7 @@ def load_rows(path: Path) -> list[str]:
                 continue
             if len(text) > 500:  # 手册 §0：丢掉超长
                 continue
-            if is_noise(text):
+            if is_noise(text) or text in DROP:
                 continue
             texts.append(text)
     return texts
@@ -122,6 +205,11 @@ def label_of(text: str) -> str:
         if re.search(r"跳投|出手|命中|得分|上篮|三分|两分|扣篮|后仰|打板|抛投|勾手|补篮", text):
             FIXED_COUNT += 1
             return "投篮"
+    # "拉开" 单独出现多指拉开空间/单打，不是比分拉开
+    if "拉开" in text and not re.search(r"分差|比分|领先|落后|\\d+\\s*分|优势", text):
+        if weak_label(text) == "比分局势":
+            FIXED_COUNT += 1
+            return "阵容战术"
     return weak_label(text)
 
 
@@ -180,11 +268,10 @@ def main() -> int:
     # 40 条生成题：10 类 × 4 条，output 取同类真人原句
     gen_pairs: list[tuple[str, str]] = []
     for label in LABELS:
-        details = DETAILS[label]
         picked = sample_by_class({label: pool.get(label, [])}, 4, rng, skip=used)
         for idx, (_, sentence) in enumerate(picked):
             clean = re.sub(r"\[[^\]]*\]\s*$", "", sentence).strip()
-            gen_pairs.append((f"{details[idx % len(details)]}；当前局面：{CONTEXTS[idx % len(CONTEXTS)]}",
+            gen_pairs.append((f"{derive_detail(label, clean or sentence)}；当前局面：{CONTEXTS[idx % len(CONTEXTS)]}",
                               clean or sentence))
             used.add(sentence)
 
