@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "input": "沃特森上罚球线！！",
+    "output": "罚球",
+    "verified": true
+  },
+  {
+    "id": 2,
+    "input": "拿球又走步了！！",
+    "output": "犯规违例",
+    "verified": true
+  },
+  {
+    "id": 3,
+    "input": "骑士换人了！！海佐尼亚上来了！！",
+    "output": "暂停换人",
+    "verified": true
+  },
+  {
+    "id": 4,
+    "input": "贺思瑶断球！！",
+    "output": "抢断",
+    "verified": true
+  },
+  {
+    "id": 5,
+    "input": "布莱恩特协防大帽！！",
+    "output": "盖帽",
+    "verified": true
+  },
+  {
+    "id": 6,
+    "input": "埃纳鲁纳篮板！给快下海佐尼亚！！",
+    "output": "篮板",
+    "verified": true
+  },
+  {
+    "id": 7,
+    "input": "分球贾明儒！！",
+    "output": "助攻传球",
+    "verified": true
+  },
+  {
+    "id": 8,
+    "input": "托马斯左侧接球三分！",
+    "output": "投篮",
+    "verified": true
+  },
+  {
+    "id": 9,
+    "input": "第一节结束！山西领先11分！",
+    "output": "比分局势",
+    "verified": true
+  },
+  {
+    "id": 10,
+    "input": "借掩护加速突破！",
+    "output": "阵容战术",
+    "verified": true
+  }
+]
