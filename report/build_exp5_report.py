@@ -23,6 +23,7 @@ from docx.shared import Cm, Pt, RGBColor
 REPO = Path(__file__).resolve().parents[1]
 FIG = REPO / "report" / "figures"
 OUT = REPO / "report" / "实验5报告.docx"
+TEMPLATE = REPO / "report" / "template_cover.docx"
 
 BODY_FONT_CN = "宋体"
 BODY_FONT_EN = "Times New Roman"
@@ -39,8 +40,56 @@ def _set_run_font(run, size=12, bold=False, cn=BODY_FONT_CN, en=BODY_FONT_EN, co
         run.font.color.rgb = color
 
 
+def _trim_after_cover(doc: Document) -> None:
+    """保留模板封面（到“时　间：”那一段），删掉其后的示例大纲。"""
+    body = doc.element.body
+    children = list(body.iterchildren())
+    cut = None
+    from docx.text.paragraph import Paragraph
+
+    for i, ch in enumerate(children):
+        if ch.tag.endswith("}p"):
+            text = Paragraph(ch, doc).text.strip()
+            if text.startswith("摘要"):
+                cut = i
+                break
+    # 封面的“项目名称”用的是 Heading 1，会被目录抓进去；把它的大纲级别设为正文
+    for ch in children[:cut]:
+        if ch.tag.endswith("}p"):
+            para_el = Paragraph(ch, doc)
+            if para_el.text.strip().startswith("项目名称"):
+                # 直接把封面的“项目名称”从 Heading 1 改成正文样式（目录只认标题样式），
+                # 再给文字补粗体，位置与横线由段内 VML 线保持，不受影响。
+                pPr = ch.get_or_add_pPr()
+                style_el = pPr.find(qn("w:pStyle"))
+                if style_el is not None:
+                    style_el.set(qn("w:val"), doc.styles["Normal"].style_id)
+                for run_el in ch.findall(qn("w:r")):
+                    if run_el.find(qn("w:t")) is None:
+                        continue
+                    rPr = run_el.find(qn("w:rPr"))
+                    if rPr is None:
+                        rPr = OxmlElement("w:rPr")
+                        run_el.insert(0, rPr)
+                    if rPr.find(qn("w:b")) is None:
+                        rPr.insert(0, OxmlElement("w:b"))
+
+    if cut is None:
+        return
+    for ch in children[cut:]:
+        if ch.tag.endswith("}sectPr"):
+            continue
+        body.remove(ch)
+
+
 def setup_document() -> Document:
-    doc = Document()
+    """以学校模板为底（保留封面版式），再套用本报告的正文样式。"""
+    if TEMPLATE.is_file():
+        doc = Document(str(TEMPLATE))
+        _trim_after_cover(doc)
+    else:
+        doc = Document()
+
     sec = doc.sections[0]
     sec.page_width = Cm(21.0)
     sec.page_height = Cm(29.7)
@@ -48,7 +97,6 @@ def setup_document() -> Document:
     sec.right_margin = Cm(2.6)
     sec.top_margin = Cm(2.5)
     sec.bottom_margin = Cm(2.5)
-    # 封面不显示页码（首页页眉页脚独立）
     sec.different_first_page_header_footer = True
 
     for style_name, size in (("Heading 1", 16), ("Heading 2", 14), ("Heading 3", 12)):
@@ -59,15 +107,41 @@ def setup_document() -> Document:
         st.font.color.rgb = RGBColor(0, 0, 0)
         st.element.rPr.rFonts.set(qn("w:eastAsia"), HEAD_FONT)
 
-    normal = doc.styles["Normal"]
-    normal.font.name = BODY_FONT_EN
-    normal.font.size = Pt(12)
-    normal.element.rPr.rFonts.set(qn("w:eastAsia"), BODY_FONT_CN)
-    pf = normal.paragraph_format
-    pf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
-    pf.line_spacing = Pt(20)
-    pf.space_before = Pt(0)
-    pf.space_after = Pt(0)
+    # 目录样式：右对齐制表位 + 点线前导符，页码落在右边距
+    from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
+
+    for toc_name, indent in (("toc 1", 0.0), ("toc 2", 0.75)):
+        if toc_name not in [x.name for x in doc.styles]:
+            continue          # 模板里还没有 TOC 样式，等 Word 生成目录后再由脚本补
+        st = doc.styles[toc_name]
+        st.font.name = BODY_FONT_CN
+        st.font.size = Pt(12)
+        st.element.rPr.rFonts.set(qn("w:eastAsia"), BODY_FONT_CN)
+        pf = st.paragraph_format
+        pf.left_indent = Cm(indent)
+        pf.first_line_indent = Cm(0)
+        pf.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        pf.space_before = Pt(0)
+        pf.space_after = Pt(2)
+        pf.tab_stops.clear_all()
+        pf.tab_stops.add_tab_stop(Cm(15.4), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
+
+    # 专用正文样式：不动模板的 Normal，避免把封面行距改坏
+    from docx.enum.style import WD_STYLE_TYPE
+
+    if "正文CN" not in [st.name for st in doc.styles]:
+        body_style = doc.styles.add_style("正文CN", WD_STYLE_TYPE.PARAGRAPH)
+        body_style.base_style = doc.styles["Normal"]
+    else:
+        body_style = doc.styles["正文CN"]
+    body_style.font.name = BODY_FONT_EN
+    body_style.font.size = Pt(12)
+    body_style.element.rPr.rFonts.set(qn("w:eastAsia"), BODY_FONT_CN)
+    bpf = body_style.paragraph_format
+    bpf.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+    bpf.line_spacing = Pt(20)
+    bpf.space_before = Pt(0)
+    bpf.space_after = Pt(0)
     return doc
 
 
@@ -107,8 +181,9 @@ def _heading(doc: Document, text: str, level: int, size: int, before: int, after
     return p
 
 
-def h1(doc: Document, text: str) -> None:
-    _heading(doc, text, 1, 16, 0, 12, 32, page_break=True)
+def h1(doc: Document, text: str, page_break: bool = False) -> None:
+    # 正文各章连续排版（模板本身连续）；摘要/参考文献/附录另起一页
+    _heading(doc, text, 1, 16, 24, 12, 32, page_break=page_break)
 
 
 def h2(doc: Document, text: str) -> None:
@@ -120,7 +195,7 @@ def h3(doc: Document, text: str) -> None:
 
 
 def para(doc: Document, text: str, indent: bool = True, align=None) -> None:
-    p = doc.add_paragraph()
+    p = doc.add_paragraph(style="正文CN")
     pf = p.paragraph_format
     pf.first_line_indent = Pt(24) if indent else Pt(0)
     pf.alignment = align if align is not None else WD_ALIGN_PARAGRAPH.JUSTIFY
@@ -129,7 +204,7 @@ def para(doc: Document, text: str, indent: bool = True, align=None) -> None:
 
 
 def bullet(doc: Document, text: str) -> None:
-    p = doc.add_paragraph()
+    p = doc.add_paragraph(style="正文CN")
     p.paragraph_format.left_indent = Pt(36)
     p.paragraph_format.first_line_indent = Pt(-12)   # 悬挂缩进，换行对齐到文字
     r = p.add_run("· " + text)
@@ -218,7 +293,7 @@ def figure(doc: Document, filename: str, cap: str, width_cm: float = 14.0) -> No
     if not path.is_file():
         para(doc, f"（缺图：{filename}）")
         return
-    p = doc.add_paragraph()
+    p = doc.add_paragraph(style="正文CN")
     pf = p.paragraph_format
     # 关键：图片段落必须单倍行距，否则会被 Normal 的“固定 20 磅”裁成一条边
     pf.line_spacing_rule = WD_LINE_SPACING.SINGLE
@@ -381,7 +456,7 @@ def toc(doc: Document) -> None:
 
 
 def abstract(doc: Document) -> None:
-    h1(doc, "摘　要")
+    h1(doc, "摘　要", page_break=True)
     for text in [
         "本项目以“AI 篮球赛事解说员”为主线，把课程五个实验串成一条从数据到产品的完整链路："
         "实验 1 采集并清洗多源异构数据，实验 2 训练球员检测模型，实验 3 做量化与蒸馏压缩，"
@@ -412,7 +487,7 @@ def abstract(doc: Document) -> None:
 
 # ---------------------------------------------------------------- 第一、二章
 def chapter1(doc: Document) -> None:
-    h1(doc, "第一章　项目背景与概述")
+    h1(doc, "第一章　项目背景与概述", page_break=True)
 
     h2(doc, "1.1　项目背景与研究意义")
     para(doc, "体育赛事视频正在从“看”走向“读懂”。一场业余或职业篮球比赛，人工剪辑与解说需要小时级投入，"
@@ -918,7 +993,7 @@ def chapter9(doc: Document) -> None:
 
 
 def references(doc: Document) -> None:
-    h1(doc, "参考文献")
+    h1(doc, "参考文献", page_break=True)
     refs = [
         "Jocher G, Chaurasia A, Qiu J. Ultralytics YOLOv8[CP/OL]. https://github.com/ultralytics/ultralytics, 2023.",
         "Cui Y, Song T, Wang K, et al. SportsMOT: A Large Multi-Object Tracking Dataset in Multiple Sports Scenes[C]//ICCV. 2023.",
@@ -943,7 +1018,7 @@ def references(doc: Document) -> None:
 
 
 def appendix(doc: Document) -> None:
-    h1(doc, "附　录")
+    h1(doc, "附　录", page_break=True)
 
     h2(doc, "附录 A　代码结构说明")
     table(doc,
@@ -1006,7 +1081,6 @@ def appendix(doc: Document) -> None:
 def build() -> Path:
     doc = setup_document()
     add_page_number_footer(doc)
-    cover(doc)
     toc(doc)
     abstract(doc)
     chapter1(doc)
