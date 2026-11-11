@@ -81,3 +81,5 @@ exp4/backend/static/
 # 实验5：LoRA 适配器（~23MB/个，走网盘分发，不进 git）
 exp5/adapters/
 exp5/adapters/_trainer_tmp/
+
+dist/
