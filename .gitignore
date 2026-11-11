@@ -82,4 +82,4 @@ exp4/backend/static/
 exp5/adapters/
 exp5/adapters/_trainer_tmp/
 
-dist/
+dist/report/.mplcache/
