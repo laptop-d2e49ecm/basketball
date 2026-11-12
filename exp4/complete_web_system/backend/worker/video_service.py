@@ -13,10 +13,22 @@ from app.core.config import settings
 from app.core.coords import normalize_xyxy
 from app.core.device import resolve_torch_device
 from app.db import task_repo
+from worker.commentary.base import CommentaryService
 from worker.commentary.stub import StubCommentaryService
 from worker.event_service import iter_heuristic_events
 
 logger = logging.getLogger("basketball-video-service")
+
+
+def build_commentary_service() -> CommentaryService:
+    """按 BASKETBALL_COMMENTARY 选择解说实现；llm 失败时内部自动回退模板句。"""
+    if settings.commentary_backend == "llm":
+        from worker.commentary.llm import LLMCommentaryService
+
+        logger.info("commentary backend = llm（失败自动回退模板句）")
+        return LLMCommentaryService()
+    logger.info("commentary backend = stub（模板句）")
+    return StubCommentaryService()
 
 
 def _write_jsonl_line(stream: Any, value: dict[str, Any]) -> None:
@@ -168,7 +180,7 @@ def process_task(task: dict[str, Any], model: Any) -> None:
             "frame_step": frame_step,
         },
     )
-    commentary_service = StubCommentaryService()
+    commentary_service = build_commentary_service()
     with events_path.open("w", encoding="utf-8") as events_file:
         for event in iter_heuristic_events(detections_path):
             event["text"] = commentary_service.generate(event)
@@ -183,6 +195,13 @@ def process_task(task: dict[str, Any], model: Any) -> None:
                     "source": event["source"],
                 },
             )
+
+    stats = getattr(commentary_service, "stats", None)
+    if stats:
+        logger.info("commentary stats: %s", stats)
+    close = getattr(commentary_service, "close", None)
+    if callable(close):
+        close()
 
     total_seconds = perf_counter() - started
     average_ms = (inference_seconds / frames_done) * 1000 if frames_done else None

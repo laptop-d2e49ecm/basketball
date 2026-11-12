@@ -1,0 +1,19 @@
+{
+  "settings_version": "0.0.8",
+  "datasets_dir": "C:\\sofeware\\AI Api\\dsh workspace\\fish\\work\\datasets",
+  "weights_dir": "C:\\sofeware\\AI Api\\dsh workspace\\fish\\work\\basketball-git\\weights",
+  "runs_dir": "C:\\sofeware\\AI Api\\dsh workspace\\fish\\work\\basketball-git\\runs",
+  "uuid": "b7b2a4d2a43053bc6e9e2baf6820375dc0777c8d0ef653e60b2c3f66c1d4d2ff",
+  "sync": true,
+  "api_key": "",
+  "openai_api_key": "",
+  "clearml": true,
+  "comet": true,
+  "dvc": true,
+  "mlflow": true,
+  "raytune": true,
+  "tensorboard": false,
+  "wandb": false,
+  "vscode_msg": true,
+  "openvino_msg": true
+}

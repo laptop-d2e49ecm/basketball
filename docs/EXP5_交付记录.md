@@ -53,3 +53,15 @@ stop_exp5.bat
 :: 校验交付包
 certutil -hashfile 实验5_完整代码模型与报告.zip SHA256
 ```
+
+## 五、追加任务：视频解说 LLM 化（2026-11-12）
+
+| 项 | 结果 |
+|---|---|
+| worker/commentary/llm.py | 新增，含 10 s 硬超时、同键 5 s 去重、单任务调用上限、失败回退 |
+| 开关 | BASKETBALL_COMMENTARY=stub\|llm，.env.example 同步 |
+| demo 实测 | 20 事件全部 LLM 文案；整任务 8.4 s（stub）→ 29.5 s（llm） |
+| 容错 | 错 key → 401 → 2 次回退、任务 ready、WARN 日志 |
+| 聊天页 | SYSTEM_PROMPT 第 5 条扩展，任务编号 + “给这个视频配解说” → 逐事件播报；工具准确率仍 10/10 |
+| 测试 | pytest -q 12 passed |
+| 报告 | 新增 7.5 节、图 7-3/7-4、表 7-5；33 页，目录 57 条逐条核对通过 |

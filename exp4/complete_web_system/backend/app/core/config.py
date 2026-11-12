@@ -34,10 +34,14 @@ class Settings:
     inference_device: str = os.getenv("BASKETBALL_DEVICE", "auto")
     task_backend: str = os.getenv("TASK_BACKEND", "worker").strip().lower()
     celery_broker_url: str = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
+    # 视频事件解说实现：stub=模板句（默认，无需 key），llm=大模型生成
+    commentary_backend: str = os.getenv("BASKETBALL_COMMENTARY", "stub").strip().lower()
 
     def __post_init__(self) -> None:
         if self.task_backend not in {"worker", "celery"}:
             raise ValueError("TASK_BACKEND must be either 'worker' or 'celery'")
+        if self.commentary_backend not in {"stub", "llm"}:
+            raise ValueError("BASKETBALL_COMMENTARY must be either 'stub' or 'llm'")
 
 
 settings = Settings()
