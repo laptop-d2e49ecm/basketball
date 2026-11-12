@@ -12,6 +12,9 @@ for %%P in (8000 5173) do (
   )
 )
 
+echo   结束视频 Worker 进程 ...
+powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.CommandLine -like '*worker.main*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+
 echo 完成。若窗口仍在，可直接关闭其控制台窗口。
 ping -n 3 127.0.0.1 >nul
 endlocal

@@ -9,10 +9,17 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import sys
 import time
 import urllib.request
+from pathlib import Path
+
+# 让脚本无论从哪个目录调用，都能导入 backend 的 app 包
+BACKEND = Path(__file__).resolve().parents[2] / "exp4" / "complete_web_system" / "backend"
+if str(BACKEND) not in sys.path:
+    sys.path.insert(0, str(BACKEND))
 
 
 def wait(url: str, timeout: float = 90.0) -> int:
@@ -55,6 +62,24 @@ def health() -> int:
     return 0 if ok else 2
 
 
+def backends() -> int:
+    """打印当前解说/任务后端配置（启动自检用）。"""
+    try:
+        from app.core.config import settings
+
+        info = {
+            "commentary_backend": settings.commentary_backend,
+            "commentary_max_calls": settings.commentary_max_calls,
+            "task_backend": settings.task_backend,
+            "text_backend": os.getenv("EXP5_TEXT_BACKEND", "joblib"),
+        }
+        print(json.dumps(info, ensure_ascii=False))
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] 读取配置失败：{exc}")
+        return 1
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -66,6 +91,8 @@ def main() -> int:
         return port_free(int(sys.argv[2]))
     if cmd == "health":
         return health()
+    if cmd == "backends":
+        return backends()
     print(f"未知命令：{cmd}")
     return 2
 

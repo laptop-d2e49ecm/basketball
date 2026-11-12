@@ -42,7 +42,7 @@ if not exist "%NODE_EXE%" (
   pause & exit /b 1
 )
 
-echo [1/4] 检查端口占用 ...
+echo [1/5] 检查端口占用 ...
 "%PY%" "%LAUNCH%" port 8000
 if errorlevel 1 (
   echo        8000 已被占用：先运行 stop_exp5.bat 再启动。
@@ -54,7 +54,7 @@ if errorlevel 1 (
   pause & exit /b 1
 )
 
-echo [2/4] 启动后端（独立窗口，最小化）...
+echo [2/5] 启动后端（独立窗口，最小化）...
 start "exp5-backend" /min /d "%BE%" "%PY%" -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 "%PY%" "%LAUNCH%" wait http://127.0.0.1:8000/api/v1/health 120
 if errorlevel 1 (
@@ -62,7 +62,30 @@ if errorlevel 1 (
   pause & exit /b 1
 )
 
-echo [3/4] 启动前端（独立窗口，最小化）...
+echo [3/5] 启动视频 Worker（独立窗口，最小化）...
+if exist "%LOGS%\worker.log" del /q "%LOGS%\worker.log" >nul 2>&1
+start "exp5-worker" /min "%ROOT%scripts\run\start_worker.bat"
+set /a WAIT_TRIES=0
+goto wait_worker
+
+:wait_worker
+ping -n 3 127.0.0.1 >nul
+findstr /C:"Worker is ready" "%LOGS%\worker.log" >nul 2>&1
+if not errorlevel 1 goto worker_ok
+set /a WAIT_TRIES+=1
+if %WAIT_TRIES% geq 30 goto worker_fail
+goto wait_worker
+
+:worker_ok
+echo        Worker 已就绪
+goto worker_done
+
+:worker_fail
+echo        Worker 60 秒内未就绪，请查看 %LOGS%\worker.log
+pause & exit /b 1
+
+:worker_done
+echo [4/5] 启动前端（独立窗口，最小化）...
 start "exp5-frontend" /min /d "%ROOT%scripts\run" cmd /c ""%NODE_EXE%" "%VITEJS%" --host 127.0.0.1 --port 5173 --strictPort"
 "%PY%" "%LAUNCH%" wait http://127.0.0.1:5173/ 90
 if errorlevel 1 (
@@ -70,8 +93,9 @@ if errorlevel 1 (
   pause & exit /b 1
 )
 
-echo [4/4] 模型自检 ...
+echo [5/5] 模型与解说配置自检 ...
 "%PY%" "%LAUNCH%" health
+"%PY%" "%LAUNCH%" backends
 
 echo.
 echo ------------------------------------------------------------
