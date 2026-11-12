@@ -36,6 +36,8 @@ class Settings:
     celery_broker_url: str = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
     # 视频事件解说实现：stub=模板句（默认，无需 key），llm=大模型生成
     commentary_backend: str = os.getenv("BASKETBALL_COMMENTARY", "stub").strip().lower()
+    # 单任务最多调用几次大模型生成解说（超出的走模板句）
+    commentary_max_calls: int = int(os.getenv("BASKETBALL_COMMENTARY_MAX_CALLS", "12"))
 
     def __post_init__(self) -> None:
         if self.task_backend not in {"worker", "celery"}:

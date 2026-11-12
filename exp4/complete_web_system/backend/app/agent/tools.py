@@ -205,10 +205,12 @@ def image_text_match(image_path: str, text: str) -> str:
 
 
 @tool
-def query_video_events(task_id: str) -> str:
+def query_video_events(task_id: str, limit: int = 20) -> str:
     """视频事件查询工具。给定一个视频分析任务编号，返回该任务产出的关键事件列表（事件类型、发生时间、人数等）。
 
     何时调用：用户给出任务编号（32 位十六进制，来自视频分析页提交视频后的结果），问"这个视频里发生了什么 / 有哪些事件"。
+
+    参数：task_id 任务编号；limit 返回多少条事件（默认 20，最大 50）。
     """
     try:
         from app.db import task_repo
@@ -231,14 +233,21 @@ def query_video_events(task_id: str) -> str:
                 continue
         if not events:
             return f"任务 {task_id} 未产生关键事件"
+        try:
+            limit = max(1, min(int(limit), 50))
+        except (TypeError, ValueError):
+            limit = 20
         parts = []
-        for event in events[:8]:
+        for event in events[:limit]:
             t_ms = event.get("t_ms")
             when = f"{t_ms / 1000:.1f}" if isinstance(t_ms, (int, float)) else "?"
             etype = event.get("type", "事件")
             extra = {k: v for k, v in event.items() if k in ("player_count", "message", "text") and v not in (None, "")}
             parts.append(f"[{when}s] {etype} {extra if extra else ''}".strip())
-        summary = f"（共 {len(events)} 个事件，仅列前 8 个）" if len(events) > 8 else f"（共 {len(events)} 个事件）"
+        if len(events) > limit:
+            summary = f"（共 {len(events)} 个事件，仅列出前 {limit} 个；还有 {len(events) - limit} 个未展示）"
+        else:
+            summary = f"（共 {len(events)} 个事件）"
         return f"任务 {task_id}（视频 {row['video_name']}）的关键事件：\n" + "\n".join(parts) + f"\n{summary}"
     except Exception as exc:  # noqa: BLE001
         return f"工具调用失败：{type(exc).__name__}: {exc}"

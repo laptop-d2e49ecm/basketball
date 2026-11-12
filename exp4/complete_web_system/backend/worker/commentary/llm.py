@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -104,17 +103,20 @@ class LLMCommentaryService(CommentaryService):
         self,
         timeout_s: float = 10.0,
         min_gap_ms: int = 5000,
-        max_calls: int = 12,  # 可被 BASKETBALL_COMMENTARY_MAX_CALLS 覆盖
+        max_calls: int | None = None,  # 默认取 settings.commentary_max_calls
         fallback: CommentaryService | None = None,
     ) -> None:
         self._fallback = fallback or StubCommentaryService()
         self._timeout_s = timeout_s
         self._min_gap_ms = min_gap_ms
-        try:
-            max_calls = int(os.getenv("BASKETBALL_COMMENTARY_MAX_CALLS", str(max_calls)))
-        except ValueError:
-            pass
-        self._max_calls = max_calls
+        if max_calls is None:
+            try:
+                from app.core.config import settings
+
+                max_calls = int(settings.commentary_max_calls)
+            except Exception:  # noqa: BLE001 - 配置缺失时退回保守值
+                max_calls = 12
+        self._max_calls = max(1, int(max_calls))
         self._calls = 0
         self._fallbacks = 0
         self._deduped = 0

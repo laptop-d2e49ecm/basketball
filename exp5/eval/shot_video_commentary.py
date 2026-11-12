@@ -23,7 +23,7 @@ def shoot_video(page) -> None:
     row.locator("button.task-open").click()
     page.wait_for_selector(".event-row", timeout=60000)
     page.wait_for_timeout(6000)  # 等视频预览与解说面板稳定
-    page.screenshot(path=str(OUT / "exp5_video_commentary.png"), full_page=False)
+    page.screenshot(path=str(OUT / "exp5_video_commentary.png"), clip={"x":250,"y":60,"width":1190,"height":748})
     print("video shot ok, events =", page.locator(".event-row").count())
 
 
@@ -33,14 +33,14 @@ def shoot_agent(page) -> None:
     box.fill(f"{TASK} 给这个视频配解说")
     box.press("Enter")
     page.wait_for_timeout(12000)
-    page.screenshot(path=str(OUT / "exp5_agent_video_narration.png"), full_page=False)
+    page.screenshot(path=str(OUT / "exp5_agent_video_narration.png"), clip={"x":250,"y":60,"width":1190,"height":640})
     print("agent shot ok")
 
 
 def main() -> int:
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel="chrome", headless=True)
-        ctx = browser.new_context(viewport={"width": 1440, "height": 900}, device_scale_factor=1)
+        ctx = browser.new_context(viewport={"width": 1440, "height": 900}, device_scale_factor=2)
         page = ctx.new_page()
         shoot_video(page)
         page2 = ctx.new_page()
