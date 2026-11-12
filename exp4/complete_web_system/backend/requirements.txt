@@ -3,6 +3,7 @@ uvicorn[standard]
 python-multipart
 python-dotenv
 ultralytics
+lap  # ultralytics 跟踪依赖（ByteTrack）
 opencv-python
 imageio-ffmpeg
 onnxruntime>=1.18
