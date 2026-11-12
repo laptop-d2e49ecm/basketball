@@ -83,3 +83,5 @@ exp5/adapters/
 exp5/adapters/_trainer_tmp/
 
 dist/report/.mplcache/
+.tmp/
+Ultralytics/
