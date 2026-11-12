@@ -85,3 +85,6 @@ exp5/adapters/_trainer_tmp/
 dist/report/.mplcache/
 .tmp/
 Ultralytics/
+
+# 复盘归档（2026-11-12）：非主线文件统一收口；已被 git mv 进来的跟踪文件不受此规则影响
+_归档/
