@@ -1,0 +1,89 @@
+{
+  "generated_at": "2026-11-10T15:21:41",
+  "scope": "CPU 三后端同机对照：PyTorch FP32 / ONNX Runtime FP32 / OpenVINO FP32；4 线程、LATENCY、640 输入、预热10/单图100/Batch32重复20；刷新报告表6 全表",
+  "status": "measured",
+  "recommended_column": {
+    "map50_95_pct": 74.737,
+    "map50_pct": 97.784,
+    "images": 190,
+    "gt_boxes": 1792,
+    "p50_ms": 46.34,
+    "p95_ms": 51.62,
+    "batch32_ms": 1524.11,
+    "fps": 21.0,
+    "mem_peak_mb": 1923.0,
+    "stability_within_5pct": true
+  },
+  "table6_columns": {
+    "baseline_pytorch_fp32": {
+      "map50_95_pct": 74.737,
+      "map50_pct": 97.784,
+      "images": 190,
+      "gt_boxes": 1792,
+      "p50_ms": 82.27,
+      "p95_ms": 97.09,
+      "batch32_ms": 3495.15,
+      "fps": 9.16,
+      "mem_peak_mb": 1250.0,
+      "stability_within_5pct": true
+    },
+    "onnxruntime_fp32": {
+      "map50_95_pct": 74.737,
+      "map50_pct": 97.784,
+      "images": 190,
+      "gt_boxes": 1792,
+      "p50_ms": 62.65,
+      "p95_ms": 75.79,
+      "batch32_ms": 2226.17,
+      "fps": 14.37,
+      "mem_peak_mb": 1747.0,
+      "stability_within_5pct": true
+    },
+    "openvino_fp32_recommended": {
+      "map50_95_pct": 74.737,
+      "map50_pct": 97.784,
+      "images": 190,
+      "gt_boxes": 1792,
+      "p50_ms": 46.34,
+      "p95_ms": 51.62,
+      "batch32_ms": 1524.11,
+      "fps": 21.0,
+      "mem_peak_mb": 1923.0,
+      "stability_within_5pct": true
+    }
+  },
+  "delta_openvino_vs_baseline": {
+    "p50_ms": -43.67,
+    "p95_ms": -46.83,
+    "batch32_ms": -56.39,
+    "fps": 129.26,
+    "mem_peak_mb_delta": 673.0,
+    "map50_95_delta_pp": 0.0
+  },
+  "threshold_check": {
+    "single_p50_reduction_pct": 43.67,
+    "single_p50_ge_40pct": true,
+    "throughput_gain_pct": 129.26,
+    "throughput_ge_50pct": true,
+    "abs_map50_95_delta_pp": 0.0,
+    "accuracy_within_0_5pp": true
+  },
+  "sources": [
+    "results/eval_a2v2_best_test.json",
+    "results/bench_a2v2_best_LATENCY.json",
+    "results/eval_a2v2_fp32_dynamic_test.json",
+    "results/bench_a2v2_fp32_dynamic_LATENCY.json",
+    "results/eval_a2v2_openvino_fp32_test.json",
+    "results/bench_a2v2_openvino_fp32_LATENCY.json"
+  ],
+  "int8_rerun": "not_required",
+  "int8_reason": "v2 E1(val173) 定位代价 2.19pp；v1 最优变体 1.58pp；均超 ≤1pp 门槛，推荐结论不变。",
+  "v1_reference_table6": {
+    "p50_ms": 56.07,
+    "p95_ms": 60.59,
+    "batch32_ms": 1785.7,
+    "fps": 17.92,
+    "map50_95_delta_pp": 0.0
+  },
+  "rule": "三列同一权重、同一评估器、同一计时协议；不与 ultralytics 口径横比。"
+}

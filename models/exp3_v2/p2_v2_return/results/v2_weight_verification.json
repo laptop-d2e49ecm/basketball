@@ -1,0 +1,47 @@
+{
+  "scope": "test190 originals, data/data.yaml (identical to v1 P2 evaluation set)",
+  "purpose": "verify handoff weight identity ONLY; not comparable to P2 COCOeval numbers",
+  "weights": {
+    "path": "D:\\workbuddy-doc\\2026-11-10-11-45-39\\实验3_v2\\优化\\weights\\a2v2_best.pt",
+    "bytes": 6506474,
+    "sha256": "0ecc8822854a3dcc3e08052a784f54861731f6b4cc2e011b75f549dc3c84d5e7",
+    "matches_handoff_sha256": true
+  },
+  "protocol": {
+    "split": "test",
+    "imgsz": 640,
+    "batch": 16,
+    "conf": 0.001,
+    "iou": 0.7,
+    "max_det": 100,
+    "device": "0",
+    "rect": "ultralytics default (.pt)"
+  },
+  "environment": {
+    "python": "3.14.7",
+    "torch": "2.14.1+cu132",
+    "cuda": "13.2",
+    "device_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "ultralytics": "8.4.183"
+  },
+  "metrics_ultralytics": {
+    "P": 0.982922,
+    "R": 0.967076,
+    "map50": 0.992012,
+    "map50_95": 0.758625
+  },
+  "expected_from_handoff": {
+    "P": 0.9825,
+    "R": 0.9671,
+    "map50": 0.992,
+    "map50_95": 0.7585
+  },
+  "delta": {
+    "P": 0.000422,
+    "R": -2.4e-05,
+    "map50": 1.2e-05,
+    "map50_95": 0.000125
+  },
+  "within_tolerance_0_002": true,
+  "next_step": "用 P2 评估器在 test190 上重测 A2' PyTorch FP32 与 A2' TRT FP16 流水线两行，刷新报告表4/表5。"
+}

@@ -1,0 +1,57 @@
+{
+  "scope": "test 190, P2 自研 COCOeval + custom AP（与 v1 表4 同评估器）",
+  "status": "measured",
+  "rows": {
+    "A2_prime_pytorch_fp32": {
+      "precision_pct": 97.1,
+      "recall_pct": 97.21,
+      "map50_pct": 97.78,
+      "map50_95_pct": 74.74,
+      "gt_boxes": 1792,
+      "images": 190,
+      "source": "gpu/results/eval_a2v2_best_test.json"
+    },
+    "A2_prime_trt_fp16_pipeline": {
+      "precision_pct": 97.04,
+      "recall_pct": 97.1,
+      "map50_pct": 97.78,
+      "map50_95_pct": 74.68,
+      "gt_boxes": 1792,
+      "images": 190,
+      "source": "gpu/results/eval_a2v2_trt_fp16_pipeline_test.json"
+    }
+  },
+  "delta": {
+    "precision_pct": {
+      "absolute": -0.06,
+      "relative_pct": -0.06
+    },
+    "recall_pct": {
+      "absolute": -0.11,
+      "relative_pct": -0.11
+    },
+    "map50_pct": {
+      "absolute": 0.0,
+      "relative_pct": 0.0
+    },
+    "map50_95_pct": {
+      "absolute": -0.06,
+      "relative_pct": -0.08
+    }
+  },
+  "v1_reference": {
+    "A2_fp32": {
+      "precision": 98.73,
+      "recall": 95.7,
+      "map50": 97.95,
+      "map50_95": 72.39
+    },
+    "distilled_trt_fp16": {
+      "precision": 97.79,
+      "recall": 96.21,
+      "map50": 97.66,
+      "map50_95": 72.86
+    }
+  },
+  "rule": "只在同一评估器内部比较；禁止与交接包 ultralytics 口径横比"
+}

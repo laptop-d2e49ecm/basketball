@@ -1,0 +1,22 @@
+{
+  "version": "11.4.0.106",
+  "GPU": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "CUDA": "13.2",
+  "source": "a2v2_fp16.onnx",
+  "source_sha256": "0893a011402d5a05929c79581d887af37bbb450f76ed00c55f0bec09cd2ed1cb",
+  "output": "a2v2_trt_fp16.engine",
+  "output_sha256": "e494dec48cd3b514896deb61912ff7c0210dddf79b52d0e53d17fc59291db87f",
+  "bytes": 8830932,
+  "seconds": 113.499,
+  "precision": "explicit FP16 ONNX with FP32 I/O",
+  "profile": {
+    "min": 1,
+    "opt": 8,
+    "max": 32
+  },
+  "workspace_MiB": 512,
+  "pipeline": "uint8 transfer, GPU normalization, 4 decode workers, reused CUDA buffers",
+  "Kaggle_T4_executed": false,
+  "portability": "engine tied to local GPU/software; rebuild on T4",
+  "note": "v2 起点权重 A2'；流水线配置未变"
+}

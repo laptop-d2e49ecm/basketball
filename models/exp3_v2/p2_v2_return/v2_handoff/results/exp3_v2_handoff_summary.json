@@ -1,0 +1,215 @@
+{
+  "generated_at": "2026-11-10T12:28:41",
+  "handoff": "exp2v2_v2交接包 / README_交接说明.md",
+  "protocol": {
+    "eval_split": "test",
+    "test_images": 190,
+    "gt_boxes": 1792,
+    "conf_eval": 0.001,
+    "iou_nms": 0.55,
+    "max_det": 100,
+    "letterbox": "640x640, same letterbox/RGB/NMS/original-coordinate restore as v1",
+    "timing": {
+      "warmup": 10,
+      "single": 100,
+      "batch_repeats": 20,
+      "batch_size": 32
+    },
+    "trt": {
+      "profile": {
+        "min": 1,
+        "opt": 8,
+        "max": 32
+      },
+      "workspace_MiB": 512,
+      "pipeline": "uint8 transfer, GPU normalization, 4 decode workers, reused CUDA buffers"
+    }
+  },
+  "table4": {
+    "scope": "test 190, P2 自研 COCOeval + custom AP（与 v1 表4 同评估器）",
+    "status": "measured",
+    "rows": {
+      "A2_prime_pytorch_fp32": {
+        "precision_pct": 97.1,
+        "recall_pct": 97.21,
+        "map50_pct": 97.78,
+        "map50_95_pct": 74.74,
+        "gt_boxes": 1792,
+        "images": 190,
+        "source": "gpu/results/eval_a2v2_best_test.json"
+      },
+      "A2_prime_trt_fp16_pipeline": {
+        "precision_pct": 97.04,
+        "recall_pct": 97.1,
+        "map50_pct": 97.78,
+        "map50_95_pct": 74.68,
+        "gt_boxes": 1792,
+        "images": 190,
+        "source": "gpu/results/eval_a2v2_trt_fp16_pipeline_test.json"
+      }
+    },
+    "delta": {
+      "precision_pct": {
+        "absolute": -0.06,
+        "relative_pct": -0.06
+      },
+      "recall_pct": {
+        "absolute": -0.11,
+        "relative_pct": -0.11
+      },
+      "map50_pct": {
+        "absolute": 0.0,
+        "relative_pct": 0.0
+      },
+      "map50_95_pct": {
+        "absolute": -0.06,
+        "relative_pct": -0.08
+      }
+    },
+    "v1_reference": {
+      "A2_fp32": {
+        "precision": 98.73,
+        "recall": 95.7,
+        "map50": 97.95,
+        "map50_95": 72.39
+      },
+      "distilled_trt_fp16": {
+        "precision": 97.79,
+        "recall": 96.21,
+        "map50": 97.66,
+        "map50_95": 72.86
+      }
+    },
+    "rule": "只在同一评估器内部比较；禁止与交接包 ultralytics 口径横比"
+  },
+  "table5": {
+    "scope": "RTX 3050 Laptop GPU, 预热10/单图100/Batch32重复20, 与 v1 表5 同协议",
+    "status": "measured",
+    "rows": {
+      "A2_prime_pytorch_fp32": {
+        "p50_ms": 22.97,
+        "p95_ms": 27.9,
+        "batch32_ms": 486.02,
+        "fps": 65.84,
+        "stability_within_5pct": true,
+        "source": "gpu/results/bench_a2v2_best_cuda_LATENCY.json"
+      },
+      "A2_prime_trt_fp16_pipeline": {
+        "p50_ms": 9.88,
+        "p95_ms": 11.65,
+        "batch32_ms": 145.34,
+        "fps": 220.18,
+        "stability_within_5pct": true,
+        "source": "gpu/results/bench_a2v2_trt_fp16_pipeline_cuda_LATENCY.json"
+      }
+    },
+    "delta": {
+      "p50_ms": {
+        "absolute": -13.09,
+        "relative_pct": -56.99
+      },
+      "p95_ms": {
+        "absolute": -16.25,
+        "relative_pct": -58.24
+      },
+      "batch32_ms": {
+        "absolute": -340.68,
+        "relative_pct": -70.1
+      },
+      "fps": {
+        "absolute": 154.34,
+        "relative_pct": 234.42
+      }
+    },
+    "thresholds": {
+      "baseline_single_ms_p50_v1": 23.08,
+      "single_ms_p50_max": 13.85,
+      "throughput_gain_min_pct": 50.0,
+      "map50_delta_max_pp": 1.0
+    },
+    "threshold_check": {
+      "single_p50_ms": 9.88,
+      "single_p50_le_13_85ms": true,
+      "throughput_gain_pct": 234.42,
+      "throughput_gain_ge_50pct": true,
+      "abs_delta_map50_pp": 0.0,
+      "map50_within_1pp": true
+    },
+    "v1_reference": {
+      "A2_fp32": {
+        "p50_ms": 23.08,
+        "p95_ms": 24.3,
+        "batch32_ms": 501.75,
+        "fps": 63.78
+      },
+      "distilled_trt_fp16": {
+        "p50_ms": 9.69,
+        "p95_ms": 10.24,
+        "batch32_ms": 137.71,
+        "fps": 232.37
+      }
+    }
+  },
+  "v2_ultralytics_baseline_for_weight_check_only": {
+    "A1_prime": {
+      "P": 0.9835,
+      "R": 0.9621,
+      "map50": 0.99,
+      "map50_95": 0.749
+    },
+    "A2_prime": {
+      "P": 0.9825,
+      "R": 0.9671,
+      "map50": 0.992,
+      "map50_95": 0.7585
+    },
+    "M1_prime": {
+      "P": 0.9876,
+      "R": 0.9801,
+      "map50": 0.9932,
+      "map50_95": 0.7894
+    },
+    "A2_prime_ONNX_FP32": {
+      "P": 0.9732,
+      "R": 0.9738,
+      "map50": 0.991,
+      "map50_95": 0.7563
+    },
+    "A2_prime_INT8_E1_val173": {
+      "P": 0.9742,
+      "R": 0.9686,
+      "map50": 0.9908,
+      "map50_95": 0.7344
+    },
+    "v1_A2_distilled_reference": {
+      "P": 0.9777,
+      "R": 0.9626,
+      "map50": 0.9874,
+      "map50_95": 0.7403
+    },
+    "v1_A2_reference": {
+      "P": 0.9839,
+      "R": 0.9621,
+      "map50": 0.9868,
+      "map50_95": 0.7338
+    }
+  },
+  "return_to_precision_line": [
+    "gpu/results/eval_a2v2_best_test.json",
+    "gpu/results/eval_a2v2_trt_fp16_pipeline_test.json",
+    "gpu/results/bench_a2v2_best_cuda_LATENCY.json",
+    "gpu/results/bench_a2v2_trt_fp16_pipeline_cuda_LATENCY.json",
+    "v2_handoff/results/exp3_v2_table4_accuracy.json",
+    "v2_handoff/results/exp3_v2_table5_speed.json",
+    "v2_handoff/results/trt_build_v2.json",
+    "results/v2_weight_verification.json"
+  ],
+  "pending_files": [],
+  "all_measured": true,
+  "rules": [
+    "蒸馏不重做；v1 表2/温度扫描/训练曲线作为方法研究完整保留。",
+    "INT8 全套变体可不重跑；CPU 线建议只补 OpenVINO FP32 一项。",
+    "两把尺子：ultralytics 口径只用于确认权重，对比只在 P2 评估器内部做。",
+    "图8/图9/图10 需按新的两行结果重绘；报告表4-7 在收到 JSON 后统一刷新。"
+  ]
+}

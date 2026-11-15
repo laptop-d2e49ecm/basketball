@@ -1,0 +1,13 @@
+{
+  "source": "a2v2_best.pt",
+  "source_sha256": "0ecc8822854a3dcc3e08052a784f54861731f6b4cc2e011b75f549dc3c84d5e7",
+  "output": "a2v2_fp16.onnx",
+  "output_sha256": "0893a011402d5a05929c79581d887af37bbb450f76ed00c55f0bec09cd2ed1cb",
+  "bytes": 6352600,
+  "seconds": 1.934,
+  "precision": "explicit FP16 weights, FP32 I/O",
+  "opset": 17,
+  "dynamic_batch": true,
+  "input": "1x3x640x640",
+  "note": "v2 只换起点权重，导出口径与 v1 一致"
+}

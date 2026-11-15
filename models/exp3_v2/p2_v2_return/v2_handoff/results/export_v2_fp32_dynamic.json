@@ -1,0 +1,31 @@
+{
+  "source": "a2v2_best.pt",
+  "source_sha256": "0ecc8822854a3dcc3e08052a784f54861731f6b4cc2e011b75f549dc3c84d5e7",
+  "output": "a2v2_fp32_dynamic.onnx",
+  "output_sha256": "1a19a0169bf948a7ea4aff77bb18e492f6d98c965b33e1ffe368d522281bb043",
+  "bytes": 12609644,
+  "seconds": 0.845,
+  "precision": "FP32",
+  "opset": 17,
+  "dynamic_batch": true,
+  "input_shape": [
+    [
+      0,
+      "batch"
+    ],
+    [
+      3,
+      ""
+    ],
+    [
+      640,
+      ""
+    ],
+    [
+      640,
+      ""
+    ]
+  ],
+  "reason": "交接包 a2v2_fp32.onnx 为静态 batch=1，内部 dfl/Reshape 写死 batch；CPU 评估器需 batch 4 / 32，故按 v1 export_fp32.py 口径重新导出。",
+  "handoff_static_onnx_preserved": "weights/a2v2_fp32.onnx（实验四 INT8 用，未改动）"
+}

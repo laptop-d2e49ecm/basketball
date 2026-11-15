@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-11-10T13:06:33",
+  "exp4_root": "D:\\workbuddy-doc\\2026-11-10-11-45-39",
+  "mode": "dry-run",
+  "text_edits": [
+    {
+      "file": "exp4/backend/app/core/config.py",
+      "exists": false,
+      "status": "missing"
+    },
+    {
+      "file": "exp4/backend/app/api/health.py",
+      "exists": false,
+      "status": "missing"
+    },
+    {
+      "file": "complete_web_system/backend/app/main.py",
+      "exists": false,
+      "status": "missing"
+    },
+    {
+      "file": "exp4/frontend/src/App.vue",
+      "exists": false,
+      "status": "missing"
+    }
+  ],
+  "weight_copies": [
+    {
+      "source": "a2v2_int8_val173.onnx",
+      "source_exists": true,
+      "dest": "D:/workbuddy-doc/2026-11-10-11-45-39/exp4/backend/weights/a2v2_int8_val173.onnx",
+      "dest_dir_exists": false,
+      "note": "图像检测 INT8，精度线产物，不在本交接包内",
+      "status": "dest_missing"
+    },
+    {
+      "source": "a2v2_best.pt",
+      "source_exists": true,
+      "dest": "D:/workbuddy-doc/2026-11-10-11-45-39/exp4/backend/weights/a2v2_best.pt",
+      "dest_dir_exists": false,
+      "note": "视频 track，交接包内",
+      "status": "dest_missing"
+    },
+    {
+      "source": "a2v2_int8_val173.onnx",
+      "source_exists": true,
+      "dest": "D:/workbuddy-doc/2026-11-10-11-45-39/complete_web_system/backend/weights/a2v2_int8_val173.onnx",
+      "dest_dir_exists": false,
+      "note": "图像检测 INT8，精度线产物，不在本交接包内",
+      "status": "dest_missing"
+    },
+    {
+      "source": "a2v2_best.pt",
+      "source_exists": true,
+      "dest": "D:/workbuddy-doc/2026-11-10-11-45-39/complete_web_system/backend/weights/a2v2_best.pt",
+      "dest_dir_exists": false,
+      "note": "视频 track，交接包内",
+      "status": "dest_missing"
+    }
+  ],
+  "warnings": [
+    "GPU 部署选项改为重建的 A2' TRT FP16 引擎；引擎绑定本机 RTX 3050 / CUDA 13.2，换设备需重建。",
+    "交接说明要求'最终统一换'：请在 §3.3 结果 JSON 回传后再 --apply；提交版报告按本人决定采用原稿口径，不刷新表4-6、不重绘图8-10。"
+  ]
+}

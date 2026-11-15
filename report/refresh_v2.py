@@ -411,5 +411,219 @@ for k, (prefix, fname, w, h, cap) in enumerate(FIGS):
     replace_image(img_p, os.path.join(V2, "figures", fname), w, h, k)
     set_runs(cap_p, cap)
 
+# ============ P2 v2 回传移植（models/exp3_v2/p2_v2_return/，2026-11-10） ============
+P2R = os.path.join(V2, "p2_v2_return")
+
+
+def p2load(rel):
+    with open(os.path.join(P2R, rel), encoding="utf-8") as f:
+        return json.load(f)
+
+
+T4 = p2load("v2_handoff/results/exp3_v2_table4_accuracy.json")
+T5 = p2load("v2_handoff/results/exp3_v2_table5_speed.json")
+T6 = p2load("v2_handoff/results/exp3_v2_table6_cpu_openvino_fp32.json")
+R4, R4T = T4["rows"]["A2_prime_pytorch_fp32"], T4["rows"]["A2_prime_trt_fp16_pipeline"]
+R5, R5T = T5["rows"]["A2_prime_pytorch_fp32"], T5["rows"]["A2_prime_trt_fp16_pipeline"]
+C6 = T6["table6_columns"]
+CB, CO, CV = C6["baseline_pytorch_fp32"], C6["onnxruntime_fp32"], C6["openvino_fp32_recommended"]
+D6 = T6["delta_openvino_vs_baseline"]
+ORT_D_P50 = (CO["p50_ms"] / CB["p50_ms"] - 1) * 100
+ORT_D_FPS = (CO["fps"] / CB["fps"] - 1) * 100
+
+para("口径说明：P2 评估所用",
+     "口径说明：P2 评估所用 190 张原始帧即本报告表3 测试集（原始帧 test 划分，与训练集零重叠），且已逐文件核验与本报告评测集一致。"
+     "本节与五.7 的表4–表7、图8–图10 均为 P2 以 v2 权重 A2′ 在其自研评估器（与 v1 表4 同口径，P/R 按 conf=0.25、IoU=0.50，"
+     "mAP 按 COCO 口径）与同一计时协议（预热 10、单图 100、Batch 32 重复 20）下的实测，只在本节内部比较、不与表3 的 ultralytics "
+     f"口径横比（同一模型两把尺子相差约 1pp）。部署选型综合两条线：CPU 环境采用精度线 a2v2_int8_val173.onnx（{SZ_E1:.1f}MB），"
+     "具备 GPU 的环境采用 A2′ TensorRT FP16 引擎（v2 实测单图 P50 9.88ms，见五.6）。")
+
+para("针对无 GPU 的部署场景",
+     "针对无 GPU 的部署场景，P2 在同一 CPU 上对 PyTorch、ONNX Runtime 与 OpenVINO 三后端做同设备对照：v1 阶段曾对 ORT INT8 "
+     "覆盖 val173/train500/train1000 校准集与 per-tensor/per-channel 粒度，另测 DFL、回归头保持 FP32 的混合精度变体、AVX2 编译版与 "
+     "512/576 输入分辨率试验，以及 OpenVINO FP32/INT8 的线程与运行模式调优；选型判据为验证集 AP50-95 损失 ≤1pp 硬门槛。v2 重测"
+     "（A2′，三后端统一 4 线程/LATENCY 模式）只保留 FP32 三列（结果见五.7）；INT8 变体不再重跑——精度线 v2 实测 E1(val173) 定位"
+     "代价 2.19pp、v1 最优变体亦达 1.58pp，均超门槛，“淘汰 INT8、推荐 OpenVINO FP32”的结论不变。计时协议与 GPU 线一致，内存以 "
+     "psutil RSS 峰值计。")
+
+para("速度线最终交付为蒸馏学生",
+     "速度线 v2 交付为 A2′ 直接构建的 TensorRT FP16 端到端流水线（蒸馏不再重复，理由见 3.2），与 A2′ PyTorch FP32 基线在同一 "
+     "190 张测试集（与表3 同一测试集）上对照；Precision/Recall 按 conf=0.25、IoU=0.50 统计，mAP 按 COCO 口径汇总，评估器与 "
+     "计时协议均沿用 v1（P2 自研，只在本节内部比较）。本节全部数字为 P2 以 v2 权重实测，已与回传原始 results 记录逐一核对一致"
+     "（含权重 sha256 与交接包校验和比对）。")
+
+para("精度呈方向分化",
+     f"四项精度指标基本持平：mAP50 完全一致（{R4['map50_pct']:.2f}% → {R4T['map50_pct']:.2f}%），Precision、Recall 与 mAP50-95 "
+     f"的变化均在 {max(abs(T4['delta'][k]['absolute']) for k in T4['delta']):.2f} 个百分点以内——半精度转换与端到端流水线改造对 "
+     "v2 强基座的精度无实质影响，部署可放心切换。v1 权重上曾出现 mAP50-95 +0.47pp 的提升，该现象依赖弱基座且无同轮次非蒸馏对照"
+     "（见 3.2），v2 上不再出现。")
+
+t4 = d.tables[4]
+assert "组合方案检测精度" in t4.rows[0].cells[0].text or "指标" == t4.rows[0].cells[0].text
+for r, vals in zip(t4.rows, [
+    ["指标", "A2′ PyTorch FP32", "A2′ TRT FP16 流水线", "变化"],
+    ["Precision（%）", f"{R4['precision_pct']:.2f}", f"{R4T['precision_pct']:.2f}",
+     f"{T4['delta']['precision_pct']['absolute']:+.2f}pp"],
+    ["Recall（%）", f"{R4['recall_pct']:.2f}", f"{R4T['recall_pct']:.2f}",
+     f"{T4['delta']['recall_pct']['absolute']:+.2f}pp"],
+    ["mAP50（%）", f"{R4['map50_pct']:.2f}", f"{R4T['map50_pct']:.2f}",
+     f"{T4['delta']['map50_pct']['absolute']:+.2f}pp"],
+    ["mAP50-95（%）", f"{R4['map50_95_pct']:.2f}", f"{R4T['map50_95_pct']:.2f}",
+     f"{T4['delta']['map50_95_pct']['absolute']:+.2f}pp"],
+]):
+    for c, v in zip(r.cells, vals):
+        set_cell(c, v)
+
+para("表4 组合方案检测精度对比", "表4 组合方案检测精度对比（test 190，P2 评估器，v2）")
+
+t5 = d.tables[5]
+for r, vals in zip(t5.rows, [
+    ["指标", "A2′ PyTorch FP32", "A2′ TRT FP16 流水线", "变化"],
+    ["单图 P50 延迟", f"{R5['p50_ms']:.2f} ms", f"{R5T['p50_ms']:.2f} ms", f"{T5['delta']['p50_ms']['relative_pct']:.2f}%"],
+    ["单图 P95 延迟", f"{R5['p95_ms']:.2f} ms", f"{R5T['p95_ms']:.2f} ms", f"{T5['delta']['p95_ms']['relative_pct']:.2f}%"],
+    ["Batch 32 平均总延迟", f"{R5['batch32_ms']:.2f} ms", f"{R5T['batch32_ms']:.2f} ms",
+     f"{T5['delta']['batch32_ms']['relative_pct']:.2f}%"],
+    ["Batch 32 吞吐", f"{R5['fps']:.2f} 图/秒", f"{R5T['fps']:.2f} 图/秒",
+     f"{R5T['fps'] / R5['fps']:.2f} 倍（+{T5['delta']['fps']['relative_pct']:.2f}%）"],
+]):
+    for c, v in zip(r.cells, vals):
+        set_cell(c, v)
+
+para("表5 GPU 推理效率对比", "表5 GPU 推理效率对比（RTX 3050 Laptop GPU，v2 实测）")
+
+para("任务书指标复核：单图延迟下降 58.0%",
+     f"任务书指标复核：单图延迟下降 {abs(T5['delta']['p50_ms']['relative_pct']):.2f}%（要求 ≥40%）、批量吞吐提升 "
+     f"{T5['delta']['fps']['relative_pct']:.2f}%（要求 ≥50%）、|ΔmAP50| {abs(T4['delta']['map50_pct']['absolute']):.2f} 个百分点"
+     "（要求 ≤1 个百分点）、连续推理延迟稳定性校验（±5%）通过——GPU 侧全部达标。作为参照，v1 同一流水线下未蒸馏引擎"
+     "（v1 权重）单图 P50 为 10.76ms，v2 的 A2′ 引擎 9.88ms，同量级；组合方案同时改变推理后端与数据处理流水线，上述数字为"
+     "端到端组合收益，不等同于 TensorRT 单项收益。")
+
+para("限制与说明：蒸馏学生结构与 A2 完全相同",
+     "限制与说明：v2 部署引擎由 A2′ 直接构建，不涉及结构与参数量压缩（体积压缩收益由精度线 INT8 承担，见表3）；测试集为同一"
+     "数据划分的连续视频帧，精度不代表对完全未见比赛的泛化（见 5.1）；TensorRT 引擎与 GPU/CUDA/TensorRT 版本绑定，迁移设备"
+     "需重建（v2 引擎构建 113.5s）；图11–13 为 v1 权重上的复合损失蒸馏方法研究（训练曲线、温度扫描、延迟-精度权衡），作为"
+     "任务书“软标签 KL + 温度 T”的落实记录保留，其结论不随 v2 改写；全套脚本与重建复现入口随交付包提供。")
+
+para("CPU 线主结果",
+     f"CPU 线 v2 主结果（A2′，三后端统一 4 线程/LATENCY 模式、同机同协议）：OpenVINO FP32 调优版单图延迟 {CV['p50_ms']:.2f}ms"
+     f"（较 PyTorch 基线 {D6['p50_ms']:.2f}%）、批量吞吐 {CV['fps']:.2f} 图/秒（+{D6['fps']:.2f}%），且 mAP50-95 与基线"
+     f"逐位一致（{CV['map50_95_pct']:.3f}%）；ONNX Runtime FP32 介于两者之间。INT8 变体未重跑：精度线 v2 实测 E1(val173) 定位"
+     "代价 2.19pp、v1 最优变体亦达 1.58pp，均超 ≤1pp 硬门槛，“淘汰 INT8、推荐 OpenVINO FP32”的结论不变。")
+
+t6 = d.tables[6]
+for r, vals in zip(t6.rows, [
+    ["指标", "A2′ PyTorch FP32（基线）", "ONNX Runtime FP32", "OpenVINO FP32 调优（推荐）", "变化（OpenVINO）"],
+    ["单图 P50 延迟", f"{CB['p50_ms']:.2f} ms", f"{CO['p50_ms']:.2f} ms", f"{CV['p50_ms']:.2f} ms", f"{D6['p50_ms']:.2f}%"],
+    ["单图 P95 延迟", f"{CB['p95_ms']:.2f} ms", f"{CO['p95_ms']:.2f} ms", f"{CV['p95_ms']:.2f} ms", f"{D6['p95_ms']:.2f}%"],
+    ["Batch 32 平均延迟", f"{CB['batch32_ms']:.2f} ms", f"{CO['batch32_ms']:.2f} ms", f"{CV['batch32_ms']:.2f} ms",
+     f"{D6['batch32_ms']:.2f}%"],
+    ["Batch 32 吞吐", f"{CB['fps']:.2f} 图/秒", f"{CO['fps']:.2f} 图/秒", f"{CV['fps']:.2f} 图/秒", f"+{D6['fps']:.2f}%"],
+    ["内存峰值", f"{CB['mem_peak_mb']:.0f} MB", f"{CO['mem_peak_mb']:.0f} MB", f"{CV['mem_peak_mb']:.0f} MB",
+     f"+{D6['mem_peak_mb_delta']:.0f}MB（后端常驻）"],
+    ["mAP50-95（test 190）", f"{CB['map50_95_pct']:.3f}%", "0.00pp（逐位一致）", "0.00pp（逐位一致）", "无损"],
+]):
+    for c, v in zip(r.cells, vals):
+        set_cell(c, v)
+
+para("表6 CPU 部署对照", "表6 CPU 部署对照（Ryzen 7 5800H，4 线程/LATENCY，P2 v2 实测）")
+
+para("三后端同机对照补充",
+     f"三后端对照细节（表6）：ONNX Runtime FP32 相对 PyTorch 基线单图延迟 {ORT_D_P50:.2f}%（{CO['p50_ms']:.2f}ms 对 "
+     f"{CB['p50_ms']:.2f}ms，PyTorch 单图调度与预处理开销占比高），批量吞吐 +{ORT_D_FPS:.1f}%；OpenVINO FP32 在单图与批量上均"
+     "最优。三列 mAP50/mAP50-95 完全一致（同一权重、同一评估器、同一 4 线程协议），满足任务书 3.2.1 精度一致性要求（误差 ≤0.5%）。"
+     "v1 表6 的数字与本轮不跨版本横比（当时线程/运行模式配置不同，v1 OpenVINO 单图 56.07ms 未达 -40% 门槛；本轮统一配置后达标）。")
+
+para("与精度线的交叉验证与部署矩阵",
+     ("与精度线的交叉验证与部署矩阵。", True),
+     "P2 v1 曾独立测得 INT8 的验证集 AP50-95 代价为 1.58pp，与精度线 v1 干净口径实测 1.7pp 相互印证；精度线 v2 复测为 "
+     f"{abs(pp(E1['map50_95'], F32['map50_95'])):.2f}pp，两条线、两个数据版本代价量级一致。据此形成部署矩阵：体积优先的 CPU 场景"
+     f"（实验4）采用精度线 a2v2_int8_val173.onnx（{SZ_E1:.1f}MB，mAP50 无损、mAP50-95 "
+     f"{pp(E1['map50_95'], F32['map50_95']):+.2f}pp）；精度保守或只需后端加速的 CPU 场景采用 OpenVINO FP32（与基线逐位一致、"
+     f"吞吐 +{D6['fps']:.2f}%）；具备 GPU 的场景采用 A2′ TensorRT FP16（单图 {R5T['p50_ms']:.2f}ms）。两条线的推理入口已统一为"
+     f"端到端 infer 脚本，实验4 Web 系统直接集成。任务书 3.1.4 门槛 v2 全部达标：GPU 单图 -{abs(T5['delta']['p50_ms']['relative_pct']):.2f}%"
+     f"（≥40%）、吞吐 +{T5['delta']['fps']['relative_pct']:.2f}%（≥50%）；CPU 单图 -{abs(D6['p50_ms']):.2f}%（≥40%，v1 未达此项）、"
+     f"吞吐 +{D6['fps']:.2f}%（≥50%）——按任务书分项如实判定。")
+
+para("三种推理加速方法跨硬件统一对比",
+     f"三种推理加速方法跨硬件统一对比如表7：GPU 侧 TensorRT FP16 三项门槛全部达标（单图 -{abs(T5['delta']['p50_ms']['relative_pct']):.2f}%、"
+     f"吞吐 +{T5['delta']['fps']['relative_pct']:.2f}%、mAP50 差 {abs(T4['delta']['map50_pct']['absolute']):.2f}pp）；CPU 侧 "
+     f"ONNX Runtime 与 OpenVINO FP32 单图分别 {ORT_D_P50:.2f}%/-{abs(D6['p50_ms']):.2f}%、吞吐 +{ORT_D_FPS:.1f}%/"
+     f"+{D6['fps']:.2f}%，精度均逐位一致——v2 下 CPU 单图延迟门槛（-40%）亦达标（v1 时 OpenVINO 实测 -22.4% 未达，本轮统一 "
+     "4 线程/LATENCY 模式后达标）。")
+
+t7 = d.tables[7]
+for r, vals in zip(t7.rows, [
+    ["加速方法", "部署硬件", "单图 P50 延迟", "Batch 32 吞吐", "精度一致性（vs 同硬件 PyTorch 基线）"],
+    ["PyTorch FP32（基线）", "RTX 3050 Laptop GPU", f"{R5['p50_ms']:.2f} ms", f"{R5['fps']:.2f} 图/秒", "—"],
+    ["TensorRT FP16（A2′）", "RTX 3050 Laptop GPU", f"{R5T['p50_ms']:.2f} ms（{T5['delta']['p50_ms']['relative_pct']:.2f}%）",
+     f"{R5T['fps']:.2f} 图/秒（+{T5['delta']['fps']['relative_pct']:.2f}%）",
+     f"mAP50 {T4['delta']['map50_pct']['absolute']:+.2f}pp，mAP50-95 {T4['delta']['map50_95_pct']['absolute']:+.2f}pp"],
+    ["PyTorch FP32（基线）", "Ryzen 7 5800H CPU", f"{CB['p50_ms']:.2f} ms", f"{CB['fps']:.2f} 图/秒", "—"],
+    ["ONNX Runtime FP32", "Ryzen 7 5800H CPU", f"{CO['p50_ms']:.2f} ms（{ORT_D_P50:.2f}%）",
+     f"{CO['fps']:.2f} 图/秒（+{ORT_D_FPS:.1f}%）", "mAP50-95 0.00pp（逐位一致）"],
+    ["OpenVINO FP32 调优", "Ryzen 7 5800H CPU", f"{CV['p50_ms']:.2f} ms（{D6['p50_ms']:.2f}%）",
+     f"{CV['fps']:.2f} 图/秒（+{D6['fps']:.2f}%）", "mAP50-95 0.00pp（逐位一致）"],
+]):
+    for c, v in zip(r.cells, vals):
+        set_cell(c, v)
+
+para("表7 推理加速方法统一对比", "表7 推理加速方法统一对比（ONNX Runtime / TensorRT / OpenVINO，v2 实测汇总）")
+para("注：GPU 行为蒸馏学生+TensorRT FP16 组合方案",
+     "注：GPU 行为 A2′ TensorRT FP16 组合方案（数据引自表4/表5）；CPU 行为 A2′ 原模型的后端切换（数据引自表6，统一 "
+     "4 线程/LATENCY 模式）；精度一致性为 test 190 上与同硬件 PyTorch FP32 基线之差（P2 评估器），括号内为相对基线变化。")
+
+# 六.总结整段（速度句含 P2 v2 数字；前一轮已改写过开头，用新前缀定位）
+para("本实验完成了篮球球员检测模型的轻量化",
+     "本实验完成了篮球球员检测模型的轻量化与推理优化闭环，并在中期完成一次数据缺陷的发现与全链重做：实验1 增强缺陷（图像未变换、"
+     "标注错位）被发现、修复并以三层校验重建，A1′/A2′/M1′ 同协议重训（test 190：A2′ "
+     f"{f4(A2['map50'])}/{f4(A2['map50_95'])}、M1′ {f4(M1['map50'])}/{f4(M1['map50_95'])}），增强收益由 v1 的负值修正为"
+     f"真实正收益（{pp(A2['map50'], A1['map50']):+.2f}pp mAP50 / {pp(A2['map50_95'], A1['map50_95']):+.2f}pp mAP50-95），"
+     f"全部结论重建于单一干净口径之上。量化主线：INT8 静态量化实现体积 -{RED:.1f}%（{SZ_F32:.1f}→{SZ_E1:.1f}MB），mAP50 "
+     f"无损、mAP50-95 代价 {abs(pp(E1['map50_95'], F32['map50_95'])):.2f}pp，校准集不敏感，蒸馏+量化叠加交互损失约 0.2pp；"
+     f"误差分析显示判定全档无损、{DA['n_unchanged']}/{DA['n_images']} 张逐图 ΔAP 为 0、噪声下降幅 <0.1pp。蒸馏主线为诚实"
+     "负结果：强基座上 dis=3/6/9 均未超基座，与 v1 弱基座上的小幅增益对照，表明基座越强、蒸馏边际收益越小；速度线的复合损失"
+     "蒸馏作为 v1 方法研究保留（任务书软标签 KL + 温度 T 的落实）。速度线 v2 部署为 A2′ TensorRT FP16：单图 P50 延迟 "
+     f"-{abs(T5['delta']['p50_ms']['relative_pct']):.2f}%（{R5['p50_ms']:.2f}→{R5T['p50_ms']:.2f}ms）、Batch 32 吞吐 "
+     f"+{T5['delta']['fps']['relative_pct']:.2f}%，mAP50 无损；CPU 侧 OpenVINO FP32 单图 -{abs(D6['p50_ms']):.2f}%、吞吐 "
+     f"+{D6['fps']:.2f}% 且精度逐位一致——任务书 3.1.4 GPU/CPU 门槛全部达标。所有结论均在统一版本与口径下得出，脚本与评测记录"
+     "随交付包提供，可复现、可追溯。")
+
+# 3.1.3 复核段与叠加段里的 v1 GPU 数字 → v2 实测（精准子串替换，避免整段重写）
+def repl(old, new):
+    for p in P:
+        if old in p.text:
+            set_runs(p, p.text.replace(old, new))
+            return
+    raise LookupError(f"repl 未找到: {old[:40]!r}")
+
+
+repl("蒸馏学生 9.69 ms，约 -9.9%，未达 ≥20% 门槛）",
+     "蒸馏学生 9.69 ms，约 -9.9%，未达 ≥20% 门槛，均为 v1 权重实测）")
+repl("任务 3.1.4（PyTorch 23.08 ms → TensorRT FP16 9.69 ms，-58.0%，P2 实测）",
+     f"任务 3.1.4（PyTorch {R5['p50_ms']:.2f} ms → A2′ TensorRT FP16 {R5T['p50_ms']:.2f} ms，"
+     f"{T5['delta']['p50_ms']['relative_pct']:.2f}%，P2 v2 实测）")
+repl("可切换 P2 的 TensorRT FP16 引擎（单图 P50 9.69ms，见 3.2 与五.6）",
+     f"可切换 A2′ TensorRT FP16 引擎（v2 实测单图 P50 {R5T['p50_ms']:.2f}ms，见五.6）")
+
+# 图8-10 换成 P2 v2 重绘图；图11-13 标注 v1 方法研究
+P2_FIGS = [
+    ("图8 ", "fig8_accuracy.png", 4.2, "图8 A2′ TensorRT FP16 与基线检测精度对比（test 190，P2 评估器）"),
+    ("图9 ", "fig9_latency.png", 4.2, "图9 单图 P50 与 P95 延迟对比（A2′，v2 实测）"),
+    ("图10 ", "fig10_batch.png", 4.2, "图10 Batch 32 平均总延迟与吞吐对比（A2′，v2 实测）"),
+    ("图11 ", None, None, "图11 蒸馏训练验证集自定义 AP50-95 曲线（T=6，第 7 轮最优 78.48%，v1 方法研究）"),
+    ("图12 ", None, None, "图12 温度敏感性研究：T5/8/10 等预算初筛与选定温度的完整验证曲线（P2，v1 方法研究）"),
+    ("图13 ", None, None, "图13 GPU 上各版本的单图延迟与测试 AP50-95 权衡（P2，v1）"),
+]
+for k, (prefix, fname, w, cap) in enumerate(P2_FIGS):
+    cap_p = find(prefix)
+    ci = [i for i, p in enumerate(P) if p is cap_p][0]
+    if fname:
+        img_p = P[ci - 1]
+        assert img_p._element.find(".//" + qn("a:blip")) is not None, f"{prefix} 上一段不是图片"
+        with Image.open(os.path.join(P2R, "v2_handoff", "figures", fname)) as im:
+            h = w * im.height / im.width
+        replace_image(img_p, os.path.join(P2R, "v2_handoff", "figures", fname), w, h, 100 + k)
+    set_runs(cap_p, cap)
+
 d.save(DST)
 print("saved:", DST)
