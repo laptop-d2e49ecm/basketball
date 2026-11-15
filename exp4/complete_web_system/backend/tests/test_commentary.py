@@ -81,3 +81,24 @@ def test_facts_do_not_leak_unknown_fields():
     facts = llm_mod._facts({"t_ms": 12400, "type": "player_count", "player_count": 6})
     assert "12.4" in facts and "6" in facts
     assert "比分" not in facts and "投篮" not in facts
+
+
+def test_prompt_injects_scene_and_style(monkeypatch):
+    """画面观察（视觉描述）与真人语气参考都必须进入提示词。"""
+    monkeypatch.setattr(llm_mod, "_style_lines", lambda q: ["好球！这波推进打得太快了！", "外线果断出手！"])
+    svc = LLMCommentaryService()
+    event = {"t_ms": 3000, "type": "player_cluster", "player_count": 4, "scene": "右侧三名球员围抢，球在人堆里"}
+    prompt = svc._prompt(event)
+    assert "画面观察" in prompt and "右侧三名球员" in prompt
+    assert "真人解说语气参考" in prompt and "这波推进" in prompt
+    assert svc.stats["style_used"] == 1
+    svc.close()
+
+
+def test_vision_disabled_without_video_path():
+    """未传 video_path（如聊天回放、单测）时不抓帧、不调视觉。"""
+    svc = LLMCommentaryService()
+    assert svc._grabber is None
+    assert svc._vision_scene({"t_ms": 1000, "type": "player_count", "player_count": 5}) is None
+    assert svc.stats["vision_calls"] == 0
+    svc.close()

@@ -56,3 +56,5 @@ class EventItem(BaseModel):
     text: str
     player_count: int | None = None
     track_ids: list[int] = Field(default_factory=list)
+    # 事件时刻关键帧的视觉描述（画面观察）；旧任务/无视觉时为空
+    scene: str = ""

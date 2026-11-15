@@ -38,6 +38,10 @@ class Settings:
     commentary_backend: str = os.getenv("BASKETBALL_COMMENTARY", "stub").strip().lower()
     # 单任务最多调用几次大模型生成解说（超出的走模板句）
     commentary_max_calls: int = int(os.getenv("BASKETBALL_COMMENTARY_MAX_CALLS", "12"))
+    # 视频解说画面观察：on 时抓事件时刻关键帧交视觉大模型描述，作为解说的第二事实源
+    vision_caption_enabled: bool = os.getenv("BASKETBALL_VISION_CAPTIONS", "on").strip().lower() in {"1", "on", "true", "yes"}
+    # 单任务最多抓帧调视觉模型的次数（超出不注入画面观察）
+    vision_max_calls: int = int(os.getenv("BASKETBALL_VISION_MAX_CALLS", "16"))
 
     def __post_init__(self) -> None:
         if self.task_backend not in {"worker", "celery"}:

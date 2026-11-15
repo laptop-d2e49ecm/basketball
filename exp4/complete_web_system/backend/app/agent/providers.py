@@ -58,3 +58,30 @@ def make_chat_model():
         timeout=timeout,
         http_client=httpx.Client(trust_env=trust_env, timeout=timeout),
     )
+
+
+def make_vision_model():
+    """视频解说画面观察用的多模态客户端（OpenAI 兼容视觉端点）。
+
+    默认复用 EXP5_LLM_* 的 base_url/key，仅模型名换成 EXP5_VISION_MODEL
+    （须选视觉模型，如 gpt-4o-mini）；也可用 EXP5_VISION_BASE_URL /
+    EXP5_VISION_API_KEY 单独指向其他视觉服务商。key 未配置时抛 RuntimeError，
+    调用方（worker.commentary.vision）会熔断并降级，不影响任务。
+    """
+    import httpx
+    from langchain_openai import ChatOpenAI
+
+    cfg = load_env()
+    api_key = cfg.get("EXP5_VISION_API_KEY") or cfg.get("EXP5_LLM_API_KEY", "")
+    if not api_key or "粘贴" in api_key or "填" in api_key:
+        raise RuntimeError(f"视觉模型 key 未配置，请编辑 {ENV_PATH}")
+    trust_env = cfg.get("EXP5_LLM_TRUST_ENV", "0") == "1"
+    timeout = float(cfg.get("EXP5_VISION_TIMEOUT", "20"))
+    return ChatOpenAI(
+        model=cfg.get("EXP5_VISION_MODEL", "gpt-4o-mini"),
+        base_url=cfg.get("EXP5_VISION_BASE_URL") or cfg.get("EXP5_LLM_BASE_URL", ""),
+        api_key=api_key,
+        temperature=0,
+        timeout=timeout,
+        http_client=httpx.Client(trust_env=trust_env, timeout=timeout),
+    )
