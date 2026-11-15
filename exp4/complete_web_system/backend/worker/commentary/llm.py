@@ -3,11 +3,13 @@
 
 设计要点（对应任务书“视频解说 LLM 化”）：
 1. 客户端进程内复用（模块级缓存），不按事件新建；
-2. 单次调用硬超时 10 秒（线程池兜底，避免客户端自身超时不生效）；
+2. 单次调用硬超时（线程池兜底，避免客户端自身超时不生效）；
 3. 任何异常 / 超时 / 未配置 key，都静默回退到 StubCommentaryService，绝不让 Worker 崩；
-4. 两条护栏：同类型事件 5 秒内只调一次（复用上一条文案）、单任务最多 N 次 LLM 调用；
-5. 事实两层：结构化事件事实 + 视觉模型对事件时刻关键帧的客观描述（可选，BASKETBALL_VISION_CAPTIONS）；
-6. 风格一层：按事件关键词/画面描述从 3 万条真人解说语料检索 2 条原句做语气参考（只学语气不抄事实）。
+4. 护栏：同类型事件冷却期内复用上一条文案、单任务调用上限、批量生成（默认 5 条/次，配额消耗降为 1/N）；
+5. 事实两层：结构化事件事实 + 视觉模型对事件时刻关键帧的客观描述（可选，BASKETBALL_VISION_CAPTIONS；
+   同一 5 秒时间桶内的事件共用一次画面观察，进一步省配额）；
+6. 风格一层：按事件关键词/画面描述从 3 万条真人解说语料检索 2 条原句做语气参考（只学语气不抄事实）；
+7. 配额熔断：403/429/额度类错误后进程内冷却 10 分钟，期间直接走模板句，不再逐条硬撞。
 """
 from __future__ import annotations
 
@@ -38,6 +40,11 @@ SYSTEM_PROMPT = (
     "输出只要一句解说词（不超过 30 字），不要引号、不要解释、不要分点。"
 )
 
+BATCH_SYSTEM_PROMPT = SYSTEM_PROMPT + (
+    "\n现在是批量模式：输入共 N 条事件，你输出 N 行，第 i 行对应第 i 条事件，"
+    "每行以'i. '开头，行内只要该条的解说词本身。"
+)
+
 _TYPE_TEXT = {
     "player_count": "画面球员人数",
     "player_count_change": "画面球员人数发生变化",
@@ -56,10 +63,19 @@ _TYPE_QUERY = {
 }
 
 _STYLE_MAX = 2
+_SCENE_BUCKET_MS = 5000  # 同一 5 秒桶内的事件共用一次画面观察
+_QUOTA_COOLDOWN_S = 600.0  # 配额类错误后的进程级冷却
 _style_failed = False
 
 _MODEL = None
 _MODEL_FAILED = False
+_MODEL_COOLDOWN_UNTIL = 0.0  # 配额熔断：到期前不再尝试调用
+
+
+def _quota_hit(exc: BaseException) -> bool:
+    """识别配额/限流类错误（免费中转 24 小时窗口、平台限流等）。"""
+    s = str(exc)
+    return any(k in s for k in ("403", "429", "额度", "quota", "rate limit", "rate_limit"))
 
 
 def _get_model() -> Any | None:
@@ -138,6 +154,15 @@ def _clean(text: Any) -> str:
     return s[:60]
 
 
+def _event_key(event: dict[str, Any]) -> tuple[str, Any]:
+    kind = str(event.get("type", ""))
+    count = event.get("player_count")
+    return (
+        kind,
+        count if kind in {"player_cluster", "player_count", "player_count_snapshot", "player_count_change"} else None,
+    )
+
+
 class LLMCommentaryService(CommentaryService):
     """大模型解说；失败一律回退模板句。
 
@@ -178,6 +203,7 @@ class LLMCommentaryService(CommentaryService):
         self._last: dict[tuple[str, Any], tuple[int, str]] = {}
         self._last_sec = 0.0
         self._prev: dict[str, Any] | None = None
+        self._scene_cache: dict[int, str] = {}
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="commentary")
         self._grabber = None
         self._vision_budget = 0
@@ -198,13 +224,18 @@ class LLMCommentaryService(CommentaryService):
             "deduped": self._deduped,
         }
 
-    def _vision_scene(self, event: dict[str, Any]) -> str | None:
-        """抓事件时刻关键帧并取画面描述；任何失败返回 None，绝不阻塞解说。"""
+    # ---- 画面观察（带 5 秒时间桶缓存）----
+    def _scene_for(self, event: dict[str, Any]) -> str | None:
+        """取事件时刻的画面描述；同一时间桶只抓一次帧、调一次视觉。失败返回 None。"""
         if self._grabber is None or self._vision_calls >= self._vision_budget:
             return None
-        t_ms = event.get("t_ms") or 0
+        t_ms = float(event.get("t_ms") or 0)
+        bucket = int(t_ms // _SCENE_BUCKET_MS)
+        cached = self._scene_cache.get(bucket)
+        if cached is not None:
+            return cached
         try:
-            jpeg = self._executor.submit(self._grabber.jpeg_b64, float(t_ms)).result(timeout=5.0)
+            jpeg = self._executor.submit(self._grabber.jpeg_b64, t_ms).result(timeout=5.0)
         except FutureTimeout:
             logger.warning("抓帧超时 t_ms=%s，本条跳过画面观察", t_ms)
             return None
@@ -225,22 +256,44 @@ class LLMCommentaryService(CommentaryService):
             logger.warning("画面描述失败：%s", exc)
             return None
         if scene:
-            logger.info("vision caption ok t=%sms -> %s", t_ms, scene[:36])
+            self._scene_cache[bucket] = scene
+            logger.info("vision caption ok t=%sms -> %s", int(t_ms), scene[:36])
         return scene or None
 
-    def _prompt(self, event: dict[str, Any]) -> str:
-        parts = [_facts(event, self._prev)]
+    # ---- 提示词 ----
+    def _event_block(self, event: dict[str, Any], index: int) -> str:
+        parts = [f"事件 {index}：{_facts(event, self._prev)}"]
         scene = str(event.get("scene") or "").strip()
         if scene:
             parts.append(f"画面观察（视觉模型对本时刻截图的客观描述，视为事实）：{scene}")
-        lines = _style_lines(scene if scene else _TYPE_QUERY.get(str(event.get("type", "")), "篮球比赛 球员"))
-        if lines:
-            self._style_used += 1
-            refs = "\n".join(f"{i}. {s}" for i, s in enumerate(lines, 1))
-            parts.append(f"真人解说语气参考（只学语气与句式，其中比分/人名/情节不许用）：\n{refs}")
-        parts.append("只解说这一条，不超过 30 字。")
         return "\n".join(parts)
 
+    def _style_block(self, query: str) -> str:
+        lines = _style_lines(query)
+        if not lines:
+            return ""
+        self._style_used += 1
+        refs = "\n".join(f"{i}. {s}" for i, s in enumerate(lines, 1))
+        return f"真人解说语气参考（只学语气与句式，其中比分/人名/情节不许用）：\n{refs}\n"
+
+    def _query_for(self, event: dict[str, Any]) -> str:
+        scene = str(event.get("scene") or "").strip()
+        return scene if scene else _TYPE_QUERY.get(str(event.get("type", "")), "篮球比赛 球员")
+
+    def _prompt(self, event: dict[str, Any]) -> str:
+        parts = [self._event_block(event, 1)]
+        parts.append(self._style_block(self._query_for(event)))
+        parts.append("只解说这一条（事件 1），不超过 30 字。")
+        return "\n".join(p for p in parts if p)
+
+    def _batch_prompt(self, events: list[dict[str, Any]]) -> str:
+        blocks = [self._event_block(ev, i + 1) for i, ev in enumerate(events)]
+        parts = ["\n".join(blocks)]
+        parts.append(self._style_block(self._query_for(events[0])))
+        parts.append(f"共 {len(events)} 条事件，逐条输出 {len(events)} 行，第 i 行以'i. '开头，只要解说词本身。")
+        return "\n".join(p for p in parts if p)
+
+    # ---- 调用 ----
     def _invoke(self, prompt: str) -> str:
         model = _get_model()
         if model is None:
@@ -248,11 +301,24 @@ class LLMCommentaryService(CommentaryService):
         msg = model.invoke([("system", SYSTEM_PROMPT), ("user", prompt)])
         return _clean(getattr(msg, "content", msg))
 
+    def _invoke_batch(self, prompt: str, n: int) -> list[str]:
+        model = _get_model()
+        if model is None:
+            raise RuntimeError("模型客户端不可用")
+        msg = model.invoke([("system", BATCH_SYSTEM_PROMPT), ("user", prompt)])
+        content = str(getattr(msg, "content", msg) or "")
+        lines: list[str] = []
+        for raw in content.splitlines():
+            s = _clean(raw)
+            s = re.sub(r"^\d+\s*[\.、．)）]\s*", "", s)
+            if s:
+                lines.append(s)
+        return lines[:n]
+
+    # ---- 单条生成（兼容旧调用；批量为默认路径）----
     def generate(self, event: dict[str, Any]) -> str:
-        kind = str(event.get("type", ""))
-        count = event.get("player_count")
+        key = _event_key(event)
         sec = event.get("t_ms") or 0
-        key = (kind, count if kind in {"player_cluster", "player_count", "player_count_snapshot", "player_count_change"} else None)
 
         # 护栏 1：同类型事件冷却期内复用上一条文案
         last = self._last.get(key)
@@ -265,13 +331,13 @@ class LLMCommentaryService(CommentaryService):
             self._prev = event
             return last[1]
 
-        # 护栏 2：单任务调用上限
-        if self._calls >= self._max_calls:
+        # 护栏 2：单任务调用上限 / 配额熔断冷却
+        if self._calls >= self._max_calls or time.time() < _MODEL_COOLDOWN_UNTIL:
             self._fallbacks += 1
             self._prev = event
             return self._fallback.generate(event)
 
-        scene = self._vision_scene(event)
+        scene = self._scene_for(event)
         if scene:
             event["scene"] = scene  # 写回事件，落盘 events.jsonl 供前端/Agent 查看画面依据
 
@@ -284,21 +350,98 @@ class LLMCommentaryService(CommentaryService):
             self._calls += 1
             self._last[key] = (int(float(sec)), text)
             self._last_sec = time.perf_counter() - started
-            logger.info(
-                "commentary LLM ok type=%s %.2fs -> %s", kind, self._last_sec, text[:30]
-            )
+            logger.info("commentary LLM ok type=%s %.2fs -> %s", event.get("type"), self._last_sec, text[:30])
             self._prev = event
             return text
         except FutureTimeout:
             self._fallbacks += 1
-            logger.warning("commentary LLM 超时（>%.0fs），回退模板句 type=%s", self._timeout_s, kind)
+            logger.warning("commentary LLM 超时（>%.0fs），回退模板句 type=%s", self._timeout_s, event.get("type"))
         except Exception as exc:  # noqa: BLE001 - 任何失败都要保住任务
             self._fallbacks += 1
-            logger.warning("commentary LLM 失败，回退模板句 type=%s err=%s", kind, exc)
+            if _quota_hit(exc):
+                _set_model_cooldown()
+            logger.warning("commentary LLM 失败，回退模板句 type=%s err=%s", event.get("type"), exc)
         self._prev = event
         return self._fallback.generate(event)
+
+    # ---- 批量生成（默认路径：一次调用出整批解说，配额消耗 1/N）----
+    def generate_batch(self, events: list[dict[str, Any]]) -> list[str]:
+        texts: list[str | None] = [None] * len(events)
+        pending: list[tuple[int, dict[str, Any]]] = []
+        batch_last: dict[tuple[str, Any], tuple[int, str]] = {}
+
+        for i, ev in enumerate(events):
+            key = _event_key(ev)
+            sec = float(ev.get("t_ms") or 0)
+            last = self._last.get(key) or batch_last.get(key)
+            try:
+                age_ms = sec - float(last[0]) if last else 1e18
+            except (TypeError, ValueError):
+                age_ms = 1e18
+            if last and age_ms < self._min_gap_ms:
+                self._deduped += 1
+                texts[i] = last[1]
+                self._prev = ev
+                continue
+            if self._calls >= self._max_calls or time.time() < _MODEL_COOLDOWN_UNTIL:
+                self._fallbacks += 1
+                texts[i] = self._fallback.generate(ev)
+                self._prev = ev
+                continue
+            pending.append((i, ev))
+
+        if pending:
+            for _, ev in pending:
+                scene = self._scene_for(ev)
+                if scene:
+                    ev["scene"] = scene
+            started = time.perf_counter()
+            try:
+                timeout = self._timeout_s * max(1, len(pending))
+                lines = self._executor.submit(
+                    self._invoke_batch, self._batch_prompt([ev for _, ev in pending]), len(pending)
+                ).result(timeout=timeout)
+                self._calls += 1
+                self._last_sec = time.perf_counter() - started
+                logger.info(
+                    "commentary LLM batch ok n=%d %.2fs -> %s",
+                    len(pending), self._last_sec, (lines[0] if lines else "")[:30],
+                )
+            except FutureTimeout:
+                lines = []
+                self._fallbacks += len(pending)
+                logger.warning("commentary LLM 批量超时（>%.0fs），整批回退模板句", timeout)
+            except Exception as exc:  # noqa: BLE001 - 任何失败都要保住任务
+                lines = []
+                self._fallbacks += len(pending)
+                if _quota_hit(exc):
+                    _set_model_cooldown()
+                logger.warning("commentary LLM 批量失败，整批回退模板句 err=%s", exc)
+
+            for (i, ev), line in zip(pending, lines):
+                texts[i] = line
+                key = _event_key(ev)
+                entry = (int(float(ev.get("t_ms") or 0)), line)
+                self._last[key] = entry
+                batch_last[key] = entry
+                self._prev = ev
+            for i, ev in pending:  # 模型少给的行用模板句补齐
+                if texts[i] is None:
+                    self._fallbacks += 1
+                    texts[i] = self._fallback.generate(ev)
+                    self._prev = ev
+
+        return [t or "" for t in texts]
 
     def close(self) -> None:
         if self._grabber is not None:
             self._grabber.close()
         self._executor.shutdown(wait=False)
+
+
+def _set_model_cooldown() -> None:
+    global _MODEL_COOLDOWN_UNTIL
+    import time as _time
+
+    _MODEL_COOLDOWN_UNTIL = _time.time() + _QUOTA_COOLDOWN_S
+    logger.warning("检测到配额/限流错误，解说 LLM 冷却 %.0f 分钟（期间直接走模板句）", _QUOTA_COOLDOWN_S / 60)

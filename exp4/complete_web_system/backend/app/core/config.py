@@ -42,6 +42,8 @@ class Settings:
     vision_caption_enabled: bool = os.getenv("BASKETBALL_VISION_CAPTIONS", "on").strip().lower() in {"1", "on", "true", "yes"}
     # 单任务最多抓帧调视觉模型的次数（超出不注入画面观察）
     vision_max_calls: int = int(os.getenv("BASKETBALL_VISION_MAX_CALLS", "16"))
+    # 解说批量生成：一次 LLM 调用产出 N 条事件解说（配额消耗降为 1/N）；1=退回逐条
+    commentary_batch_size: int = max(1, int(os.getenv("BASKETBALL_COMMENTARY_BATCH", "5")))
 
     def __post_init__(self) -> None:
         if self.task_backend not in {"worker", "celery"}:

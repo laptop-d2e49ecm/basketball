@@ -27,6 +27,7 @@ ANALYST_PROMPT = (
 
 _VISION = None
 _VISION_FAILED = False
+_VISION_COOLDOWN_UNTIL = 0.0  # 配额/限流类错误的进程级冷却（与 llm.py 同策略）
 
 
 def _get_model() -> Any | None:
@@ -94,7 +95,11 @@ class FrameGrabber:
 
 def describe_frame(jpeg_b64: str) -> str | None:
     """把一帧截图交给视觉大模型，返回不超过 60 字的画面描述；失败返回 None。"""
-    global _VISION_FAILED
+    global _VISION_FAILED, _VISION_COOLDOWN_UNTIL
+    import time
+
+    if time.time() < _VISION_COOLDOWN_UNTIL:
+        return None
     model = _get_model()
     if model is None:
         return None
@@ -108,6 +113,11 @@ def describe_frame(jpeg_b64: str) -> str | None:
         text = re.sub(r"\s+", " ", text).strip()
         return text[:60] or None
     except Exception as exc:  # noqa: BLE001 - 任何失败都不阻塞解说
-        _VISION_FAILED = True
-        logger.warning("vision 调用失败，本进程熔断画面观察：%s", exc)
+        s = str(exc)
+        if any(k in s for k in ("403", "429", "额度", "quota", "rate limit", "rate_limit")):
+            _VISION_COOLDOWN_UNTIL = time.time() + 600.0
+            logger.warning("vision 触发配额/限流，冷却 10 分钟：%s", exc)
+        else:
+            _VISION_FAILED = True
+            logger.warning("vision 调用失败，本进程熔断画面观察：%s", exc)
         return None

@@ -184,21 +184,34 @@ def process_task(task: dict[str, Any], model: Any) -> None:
         },
     )
     commentary_service = build_commentary_service(video_path=str(video_path))
+    batch_size = int(getattr(settings, "commentary_batch_size", 5) or 1)
     with events_path.open("w", encoding="utf-8") as events_file:
+
+        def _flush(batch: list[dict[str, Any]]) -> None:
+            texts = commentary_service.generate_batch(batch)
+            for event, text in zip(batch, texts):
+                event["text"] = text
+                _write_jsonl_line(events_file, event)
+                task_repo.notify_task(
+                    task_id,
+                    {
+                        "type": "commentary",
+                        "t_ms": event["t_ms"],
+                        "text": event["text"],
+                        "event": event["type"],
+                        "source": event["source"],
+                        "scene": event.get("scene", ""),
+                    },
+                )
+
+        batch: list[dict[str, Any]] = []
         for event in iter_heuristic_events(detections_path):
-            event["text"] = commentary_service.generate(event)
-            _write_jsonl_line(events_file, event)
-            task_repo.notify_task(
-                task_id,
-                {
-                    "type": "commentary",
-                    "t_ms": event["t_ms"],
-                    "text": event["text"],
-                    "event": event["type"],
-                    "source": event["source"],
-                    "scene": event.get("scene", ""),
-                },
-            )
+            batch.append(event)
+            if len(batch) >= batch_size:
+                _flush(batch)
+                batch = []
+        if batch:
+            _flush(batch)
 
     stats = getattr(commentary_service, "stats", None)
     if stats:

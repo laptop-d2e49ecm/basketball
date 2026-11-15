@@ -99,6 +99,68 @@ def test_vision_disabled_without_video_path():
     """未传 video_path（如聊天回放、单测）时不抓帧、不调视觉。"""
     svc = LLMCommentaryService()
     assert svc._grabber is None
-    assert svc._vision_scene({"t_ms": 1000, "type": "player_count", "player_count": 5}) is None
+    assert svc._scene_for({"t_ms": 1000, "type": "player_count", "player_count": 5}) is None
     assert svc.stats["vision_calls"] == 0
+    svc.close()
+
+
+def test_batch_generates_one_call_for_whole_batch(monkeypatch):
+    """批量模式：整批一次调用，行号解析后逐条落位。"""
+    monkeypatch.setattr(llm_mod, "_MODEL_COOLDOWN_UNTIL", 0.0)
+    calls = {"n": 0}
+
+    def fake_invoke_batch(self, prompt, n):
+        calls["n"] += 1
+        return ["第一条", "第二条", "第三条"][:n]
+
+    monkeypatch.setattr(LLMCommentaryService, "_invoke_batch", fake_invoke_batch)
+    svc = LLMCommentaryService(min_gap_ms=0)
+    events = [
+        {"t_ms": 1000, "type": "player_count", "player_count": 6},
+        {"t_ms": 9000, "type": "player_cluster", "player_count": 4},
+        {"t_ms": 17000, "type": "player_count_change", "player_count": 8},
+    ]
+    texts = svc.generate_batch(events)
+    assert texts == ["第一条", "第二条", "第三条"]
+    assert calls["n"] == 1
+    assert svc.stats["llm_calls"] == 1
+    svc.close()
+
+
+def test_batch_fills_missing_lines_with_fallback(monkeypatch):
+    """模型少给行时，缺的行用模板句补齐，已有行保留。"""
+    monkeypatch.setattr(llm_mod, "_MODEL_COOLDOWN_UNTIL", 0.0)
+
+    def fake_invoke_batch(self, prompt, n):
+        return ["只有第一条"]  # 少给了
+
+    monkeypatch.setattr(LLMCommentaryService, "_invoke_batch", fake_invoke_batch)
+    svc = LLMCommentaryService(min_gap_ms=0)
+    events = [
+        {"t_ms": 1000, "type": "player_count", "player_count": 6},
+        {"t_ms": 9000, "type": "player_cluster", "player_count": 4},
+    ]
+    texts = svc.generate_batch(events)
+    assert texts[0] == "只有第一条"
+    assert texts[1].startswith("画面局部出现")  # 模板句补齐
+    svc.close()
+
+
+def test_quota_error_triggers_cooldown(monkeypatch):
+    """403/额度错误后进入冷却：后续事件不再尝试调用，直接模板句。"""
+    monkeypatch.setattr(llm_mod, "_MODEL_COOLDOWN_UNTIL", 0.0)
+    attempts = {"n": 0}
+
+    def fake_invoke(self, prompt):
+        attempts["n"] += 1
+        raise RuntimeError("Error code: 403 - 免费请求额度已用完")
+
+    monkeypatch.setattr(LLMCommentaryService, "_invoke", fake_invoke)
+    svc = LLMCommentaryService(min_gap_ms=0)
+    a = svc.generate({"t_ms": 1000, "type": "player_count", "player_count": 6})
+    assert attempts["n"] == 1 and a.startswith("画面")
+    b = svc.generate({"t_ms": 9000, "type": "player_cluster", "player_count": 4})
+    assert attempts["n"] == 1 and b.startswith("画面局部")  # 冷却期内零尝试
+    assert llm_mod._MODEL_COOLDOWN_UNTIL > 0
+    monkeypatch.setattr(llm_mod, "_MODEL_COOLDOWN_UNTIL", 0.0)  # 还原，避免影响其他测试
     svc.close()
