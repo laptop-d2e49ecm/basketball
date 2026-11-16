@@ -118,6 +118,11 @@ test('completed task shows whole narration and answers with its task id', async 
   await page.route('**/api/v1/tasks/test-task/narration', route =>
     route.fulfill({ json: { code: 0, result: { status: 'ready', text: '球员疑似传球，随后移动方向变化。', sections: [] }, msg: 'ok' } }),
   )
+  let audioRequested = false
+  await page.route('**/api/v1/tasks/test-task/narration/audio', route => {
+    audioRequested = true
+    return route.fulfill({ status: 200, contentType: 'audio/mpeg', body: 'id3-fake-mp3' })
+  })
   await page.route('**/api/v1/agent/chat', route => {
     askedTask = route.request().postDataJSON().message
     return route.fulfill({ json: { code: 0, result: { session_id: 'session-1', agent: '该任务出现疑似传球。', elapsed_ms: 120 }, msg: 'ok' } })
@@ -128,6 +133,8 @@ test('completed task shows whole narration and answers with its task id', async 
   await frame.getByRole('button', { name: '确认分析' }).click()
   await expect(frame.locator('#narrationText')).toHaveText('球员疑似传球，随后移动方向变化。')
   await expect(frame.locator('#speakNarration')).toBeVisible()
+  await frame.locator('#speakNarration').click()
+  await expect.poll(() => audioRequested).toBe(true)
   await frame.locator('#taskQuestion').fill('开场发生了什么？')
   await frame.locator('#askTask').click()
   await expect(frame.locator('#taskAnswer')).toHaveText('该任务出现疑似传球。')

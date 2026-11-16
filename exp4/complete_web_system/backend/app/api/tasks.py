@@ -215,6 +215,26 @@ def get_narration(task_id: str) -> ApiEnvelope[dict[str, Any]]:
     return ApiEnvelope(result=json.loads(path.read_text(encoding="utf-8")))
 
 
+@router.get("/{task_id}/narration/audio")
+def get_narration_audio(task_id: str) -> FileResponse:
+    """整场解说稿的神经网络语音（edge-tts），合成结果缓存在任务目录。"""
+    row = task_repo.get_task(task_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    narration_path = settings.runs_dir / task_id / "narration.json"
+    if not narration_path.exists():
+        raise HTTPException(status_code=409, detail="解说稿尚未生成")
+    if json.loads(narration_path.read_text(encoding="utf-8")).get("status") != "ready":
+        raise HTTPException(status_code=409, detail="解说稿就绪后才能合成语音")
+    from app.tts import synthesize_narration
+
+    try:
+        audio_path = synthesize_narration(narration_path)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return FileResponse(audio_path, media_type="audio/mpeg")
+
+
 @router.post("/{task_id}/narration/retry", response_model=ApiEnvelope[dict[str, Any]], status_code=202)
 def retry_narration(task_id: str, background_tasks: BackgroundTasks) -> ApiEnvelope[dict[str, Any]]:
     row = task_repo.get_task(task_id)
