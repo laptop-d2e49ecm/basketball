@@ -9,7 +9,7 @@ import json
 
 import numpy as np
 
-from worker.action_service import ActionRecognizer, iter_action_events
+from worker.action_service import ActionRecognizer, _expand_square, iter_action_events
 
 
 class FakeRecognizer(ActionRecognizer):
@@ -71,6 +71,8 @@ def test_action_events_threshold_background_cooldown(tmp_path):
     first = events[0]
     assert first["type"] == "action" and first["source"] == "action_model"
     assert first["action_zh"] == "运球" and 0.89 < first["conf"] <= 0.9
+    assert first["player_count"] == 1  # 场上框数，不是该轨迹窗口的观测帧数
+    assert first["track_ids"] == [1]
     assert recognizer.calls  # 全部窗口都真正调用了识别器
     assert not scripted  # 脚本恰好耗尽
 
@@ -94,3 +96,10 @@ def test_action_events_no_tracks(tmp_path):
     recognizer = FakeRecognizer([])
     assert list(iter_action_events(detections, _loader, recognizer)) == []
     assert recognizer.calls == []
+
+
+def test_action_crop_uses_both_image_dimensions():
+    # 竖向球员框在宽屏画面中不能按画面宽度重复放大。
+    left, top, right, bottom = _expand_square(0.5, 0.5, 0.05, 0.2, 1280, 720)
+    assert right - left == bottom - top
+    assert 170 <= right - left <= 175

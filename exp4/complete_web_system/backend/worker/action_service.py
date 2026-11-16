@@ -110,6 +110,7 @@ def iter_action_events(
     同一球员换新 track_id 后仍在原分区，不会绕过冷却。
     """
     tracks: dict[int, list[dict[str, Any]]] = {}
+    frame_counts: dict[int, int] = {}
     image_size = (1280, 720)
     with detections_path.open("r", encoding="utf-8") as stream:
         for line in stream:
@@ -117,6 +118,7 @@ def iter_action_events(
                 continue
             frame = json.loads(line)
             image_size = (int(frame.get("image_w", 1280)), int(frame.get("image_h", 720)))
+            frame_counts[int(frame.get("frame_idx", 0))] = len(frame.get("boxes", []))
             for box in frame.get("boxes", []):
                 tid = box.get("track_id")
                 if tid is None:
@@ -168,7 +170,8 @@ def iter_action_events(
                 "action_zh": recognizer.zh_names.get(label, label),
                 "conf": round(prob, 3),
                 "track_id": tid,
-                "player_count": len(window),
+                "player_count": frame_counts.get(window[len(window) // 2]["frame_idx"]),
+                "track_ids": [tid],
             }
 
 

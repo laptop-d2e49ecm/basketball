@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.core.config import settings
@@ -202,3 +202,44 @@ def get_events(task_id: str) -> ApiEnvelope[list[EventItem]]:
         raise HTTPException(status_code=404, detail="任务不存在")
     events = [EventItem.model_validate(row) for row in _load_jsonl(settings.runs_dir / task_id / "events.jsonl")]
     return ApiEnvelope(result=events)
+
+
+@router.get("/{task_id}/narration", response_model=ApiEnvelope[dict[str, Any]])
+def get_narration(task_id: str) -> ApiEnvelope[dict[str, Any]]:
+    row = task_repo.get_task(task_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    path = settings.runs_dir / task_id / "narration.json"
+    if not path.exists():
+        return ApiEnvelope(result={"task_id": task_id, "status": "pending" if row["status"] != "ready" else "not_started", "text": "", "sections": []})
+    return ApiEnvelope(result=json.loads(path.read_text(encoding="utf-8")))
+
+
+@router.post("/{task_id}/narration/retry", response_model=ApiEnvelope[dict[str, Any]], status_code=202)
+def retry_narration(task_id: str, background_tasks: BackgroundTasks) -> ApiEnvelope[dict[str, Any]]:
+    row = task_repo.get_task(task_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if row["status"] != "ready":
+        raise HTTPException(status_code=409, detail="视频分析完成后才能生成解说")
+    events_path = settings.runs_dir / task_id / "events.jsonl"
+    if not events_path.exists():
+        raise HTTPException(status_code=409, detail="事件数据尚未准备好")
+    narration_path = events_path.parent / "narration.json"
+    if narration_path.exists():
+        existing = json.loads(narration_path.read_text(encoding="utf-8"))
+        if existing.get("status") == "running":
+            raise HTTPException(status_code=409, detail="解说正在生成中")
+    from worker.narration_service import write_narration
+
+    write_narration(narration_path, {"task_id": task_id, "status": "running", "text": "", "sections": []})
+    task_repo.update_task_metadata(task_id, narration_status="running")
+    background_tasks.add_task(_retry_narration_in_background, task_id, events_path)
+    return ApiEnvelope(result={"task_id": task_id, "status": "running"})
+
+
+def _retry_narration_in_background(task_id: str, events_path: Path) -> None:
+    from worker.narration_service import run_task_narration
+
+    result = run_task_narration(task_id, events_path)
+    task_repo.update_task_metadata(task_id, narration_status=result["status"])

@@ -36,7 +36,7 @@ class Settings:
     # 权重缺失或推理失败自动回退启发式事件，不影响任务完成。
     # 部署用 FP32 ONNX（INT8 动态量化在 3D 卷积上慢约 28 倍，见 scripts/06_action 评估）
     action_recognition_enabled: bool = (
-        os.getenv("BASKETBALL_ACTION", "off").strip().lower() in {"1", "on", "true", "yes"}
+        os.getenv("BASKETBALL_ACTION", "on").strip().lower() in {"1", "on", "true", "yes"}
     )
     action_model_path: Path = Path(
         os.getenv(

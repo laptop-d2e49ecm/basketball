@@ -272,6 +272,14 @@ def process_task(task: dict[str, Any], model: Any) -> None:
     if callable(close):
         close()
 
+    # 事件文件写完后，Agent 读取同一 task_id 的全部事件并保存整场解说。
+    task_repo.update_task(task_id, stage="narrating", progress=0.99,
+                          notify={"type": "progress", "stage": "narrating", "progress": 0.99})
+    from worker.narration_service import run_task_narration
+
+    narration = run_task_narration(task_id, events_path)
+    task_repo.update_task_metadata(task_id, narration_status=narration["status"])
+
     total_seconds = perf_counter() - started
     average_ms = (inference_seconds / frames_done) * 1000 if frames_done else None
     finished_at = datetime.now(UTC).isoformat()
