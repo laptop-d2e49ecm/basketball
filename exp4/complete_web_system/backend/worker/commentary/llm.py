@@ -8,7 +8,8 @@
 4. 护栏：同类型事件冷却期内复用上一条文案、单任务调用上限、批量生成（默认 5 条/次，配额消耗降为 1/N）；
 5. 事实两层：结构化事件事实 + 视觉模型对事件时刻关键帧的客观描述（可选，BASKETBALL_VISION_CAPTIONS；
    同一 5 秒时间桶内的事件共用一次画面观察，进一步省配额）；
-6. 风格一层：按事件关键词/画面描述从 3 万条真人解说语料检索 2 条原句做语气参考（只学语气不抄事实）；
+6. 风格一层：从 3 万条真人解说语料检索原句做语气参考（只学语气不抄事实）；
+   单条按本条事件检索，批量按批内多种事件（动作优先）各取参考，不只看第一条；
 7. 配额熔断：403/429/额度类错误后进程内冷却 10 分钟，期间直接走模板句，不再逐条硬撞。
 """
 from __future__ import annotations
@@ -39,6 +40,8 @@ SYSTEM_PROMPT = (
     "参考句里的比分、人名、球队和情节一律不许搬用。"
     "不要复述其他时间点的事件，只解说本条。"
     "说法要有变化：不要每条都用'人数变成X'，可以换'场上现在…''这边…''一下…'等不同说法。"
+    "解说词必须是完整的一句话：不许只写动作名或'动作名+感叹号'（如'传球！'），"
+    "要带上位置、人数或节奏等本条事实里的细节；同类动作再次出现时必须换一种说法。"
     "输出只要一句解说词（不超过 30 字），不要引号、不要解释、不要分点。"
 )
 
@@ -65,6 +68,7 @@ _TYPE_QUERY = {
 }
 
 _STYLE_MAX = 2
+_STYLE_QUERIES_MAX = 3  # 批量模式下最多为几种事件各取语气参考
 _SCENE_BUCKET_MS = 5000  # 同一 5 秒桶内的事件共用一次画面观察
 _QUOTA_COOLDOWN_S = 600.0  # 配额类错误后的进程级冷却
 _style_failed = False
@@ -278,13 +282,30 @@ class LLMCommentaryService(CommentaryService):
             parts.append(f"画面观察（视觉模型对本时刻截图的客观描述，视为事实）：{scene}")
         return "\n".join(parts)
 
-    def _style_block(self, query: str) -> str:
-        lines = _style_lines(query)
+    def _render_style(self, lines: list[str]) -> str:
         if not lines:
             return ""
         self._style_used += 1
         refs = "\n".join(f"{i}. {s}" for i, s in enumerate(lines, 1))
         return f"真人解说语气参考（只学语气与句式，其中比分/人名/情节不许用）：\n{refs}\n"
+
+    def _style_block(self, query: str) -> str:
+        return self._render_style(_style_lines(query))
+
+    def _style_block_for_batch(self, events: list[dict[str, Any]]) -> str:
+        """批内每种事件（动作优先）各检索语气参考并去重合并，避免整批只参考第一条。"""
+        queries: list[str] = []
+        ordered = sorted(events, key=lambda ev: str(ev.get("type", "")) != "action")
+        for ev in ordered:
+            query = self._query_for(ev)
+            if query and query not in queries:
+                queries.append(query)
+        lines: list[str] = []
+        for query in queries[:_STYLE_QUERIES_MAX]:
+            for line in _style_lines(query):
+                if line and line not in lines:
+                    lines.append(line)
+        return self._render_style(lines)
 
     def _query_for(self, event: dict[str, Any]) -> str:
         kind = str(event.get("type", ""))
@@ -303,7 +324,7 @@ class LLMCommentaryService(CommentaryService):
     def _batch_prompt(self, events: list[dict[str, Any]]) -> str:
         blocks = [self._event_block(ev, i + 1) for i, ev in enumerate(events)]
         parts = ["\n".join(blocks)]
-        parts.append(self._style_block(self._query_for(events[0])))
+        parts.append(self._style_block_for_batch(events))
         parts.append(f"共 {len(events)} 条事件，逐条输出 {len(events)} 行，第 k 行以'k. '开头（k 为行号数字），只要解说词本身。")
         return "\n".join(p for p in parts if p)
 

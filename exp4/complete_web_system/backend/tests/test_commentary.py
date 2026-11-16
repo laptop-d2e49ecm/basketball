@@ -95,6 +95,37 @@ def test_prompt_injects_scene_and_style(monkeypatch):
     svc.close()
 
 
+def test_batch_prompt_styles_match_each_action(monkeypatch):
+    """批量模式：批内多种事件（动作优先）各自匹配语气参考，不再只看第一条事件。"""
+    styles = {
+        "篮球 三分出手": ["三分线外果断拔起！"],
+        "篮球 传球": ["球转移得干脆利落！"],
+        "篮球 运球": ["节奏压得稳稳的。"],
+        "篮球 抢断": ["断得干净！"],
+        "球员上场站位": ["双方摆开了阵型。"],
+    }
+
+    monkeypatch.setattr(llm_mod, "_style_lines", lambda q: styles.get(q, []))
+    svc = LLMCommentaryService()
+    events = [
+        {"t_ms": 1000, "type": "player_count", "player_count": 10},
+        {"t_ms": 3000, "type": "action", "action": "shot_3p", "action_zh": "三分出手", "conf": 0.8},
+        {"t_ms": 6000, "type": "action", "action": "pass", "action_zh": "传球", "conf": 0.8},
+    ]
+    prompt = svc._batch_prompt(events)
+    assert "果断拔起" in prompt and "干脆利落" in prompt  # 两种动作各自有参考
+    assert "双方摆开了阵型" in prompt  # 第三种查询（人数事件）也在上限内
+    assert svc.stats["style_used"] == 1
+
+    capped = svc._batch_prompt([
+        {"t_ms": i, "type": "action", "action": f"a{i}", "action_zh": zh, "conf": 0.8}
+        for i, zh in enumerate(["三分出手", "传球", "运球", "抢断"], 1)
+    ])
+    assert "断得干净" not in capped  # 查询种数封顶 3：第 4 种动作不取参考
+    assert "运球" in capped and capped.count("参考") == 1
+    svc.close()
+
+
 def test_vision_disabled_without_video_path():
     """未传 video_path（如聊天回放、单测）时不抓帧、不调视觉。"""
     svc = LLMCommentaryService()
