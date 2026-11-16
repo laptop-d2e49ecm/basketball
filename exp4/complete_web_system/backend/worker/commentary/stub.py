@@ -10,6 +10,12 @@ class StubCommentaryService(CommentaryService):
 
     def generate(self, event: dict[str, Any]) -> str:
         count = int(event.get("player_count", 0))
+        if event.get("type") == "action":
+            zh = str(event.get("action_zh") or event.get("action") or "动作")
+            sec = (event.get("t_ms") or 0) / 1000
+            conf = event.get("conf")
+            tail = f"（模型置信度 {conf:.0%}）" if isinstance(conf, float) else ""
+            return f"第 {sec:.1f} 秒，有球员{zh}{tail}。"
         if event.get("type") == "player_cluster":
             return f"画面局部出现约 {count} 名球员聚集。"
         if event.get("type") == "group_direction_change":

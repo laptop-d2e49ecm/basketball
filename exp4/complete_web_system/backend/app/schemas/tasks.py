@@ -58,3 +58,8 @@ class EventItem(BaseModel):
     track_ids: list[int] = Field(default_factory=list)
     # 事件时刻关键帧的视觉描述（画面观察）；旧任务/无视觉时为空
     scene: str = ""
+    # 动作识别事件（type=action / source=action_model）的载荷
+    action: str | None = None
+    action_zh: str | None = None
+    conf: float | None = None
+    track_id: int | None = None

@@ -1,0 +1,63 @@
+{
+  "arch": "mc3_18",
+  "classes": [
+    "pass",
+    "dribble",
+    "shot_2p",
+    "shot_3p",
+    "interfere_shot",
+    "drive",
+    "screen",
+    "pick_roll_def",
+    "rebound",
+    "sag",
+    "free_throw",
+    "steal",
+    "block",
+    "_none"
+  ],
+  "zh_names": {
+    "pass": "传球",
+    "dribble": "运球",
+    "shot_2p": "两分出手",
+    "shot_3p": "三分出手",
+    "interfere_shot": "投篮干扰",
+    "drive": "持球突破",
+    "screen": "掩护",
+    "pick_roll_def": "防守挡拆",
+    "rebound": "篮板拼抢",
+    "sag": "收缩防守",
+    "free_throw": "罚球",
+    "steal": "抢断",
+    "block": "盖帽",
+    "_none": "无动作"
+  },
+  "num_frames": 16,
+  "frame_size": 112,
+  "mean": [
+    0.43216,
+    0.394666,
+    0.37645
+  ],
+  "std": [
+    0.22803,
+    0.22145,
+    0.216989
+  ],
+  "onnx_fp32": {
+    "path": "action_mc3_18.onnx",
+    "size_mb": 45.98,
+    "max_abs_diff_vs_pt": 3.814697265625e-06
+  },
+  "onnx_int8": {
+    "path": "action_mc3_18.int8.onnx",
+    "size_mb": 11.55,
+    "top1_agree_vs_fp32": 1.0,
+    "max_abs_diff_vs_pt": 0.2715
+  },
+  "cpu_latency_ms_per_clip": {
+    "fp32": 326.4,
+    "int8": 4399.9
+  },
+  "deployment_recommendation": "fp32"
+}

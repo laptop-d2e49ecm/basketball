@@ -27,9 +27,11 @@ logger = logging.getLogger("basketball-worker.commentary")
 
 SYSTEM_PROMPT = (
     "你是篮球比赛的现场解说员，说话简短、口语化、有现场感。"
-    "你只能依据本条事件给出的事实说话（包括'画面观察'对截图的客观描述），"
-    "绝对不许出现事实里没有的信息："
-    "不许说比分、投篮命中、罚球、球员姓名、球队名、战术名，也不许说"
+    "你只能依据本条事件给出的事实说话（包括'画面观察'对截图的客观描述）。"
+    "动作识别事件给出的动作（如三分出手、运球、传球、抢断）属于事实，可以解说，"
+    "但只许用事实里给出的那一个动作，不许引申出别的动作或结果；"
+    "除此之外，绝对不许出现事实里没有的信息："
+    "不许说比分、投篮命中与否、球员姓名、球队名，也不许说"
     "'时间走完''比赛结束''暂停''犯规'这类事实里没有的情节，"
     "也不许说'最后''终场''压哨''节末'这类赛况判断，"
     "更不许推测接下来会发生什么（例如'马上要发球''要进攻了''准备投篮'）。"
@@ -137,6 +139,11 @@ def _facts(event: dict[str, Any], prev: dict[str, Any] | None = None) -> str:
     sec = _fmt_sec(event.get("t_ms"))
     prev_count = (prev or {}).get("player_count")
     lead = f"第 {sec} 秒" if sec != "开场" else "开场时"
+    if kind == "action":
+        zh = str(event.get("action_zh") or event.get("action") or "动作")
+        conf = event.get("conf")
+        tail = f"，模型置信度 {conf:.0%}" if isinstance(conf, float) else ""
+        return f"{lead}，动作识别：有球员{zh}{tail}。"
     if count is None:
         return f"{lead}，{desc}。"
     if kind == "player_cluster":
@@ -157,10 +164,13 @@ def _clean(text: Any) -> str:
 def _event_key(event: dict[str, Any]) -> tuple[str, Any]:
     kind = str(event.get("type", ""))
     count = event.get("player_count")
-    return (
-        kind,
-        count if kind in {"player_cluster", "player_count", "player_count_snapshot", "player_count_change"} else None,
-    )
+    if kind == "action":
+        detail: Any = event.get("action")
+    elif kind in {"player_cluster", "player_count", "player_count_snapshot", "player_count_change"}:
+        detail = count
+    else:
+        detail = None
+    return (kind, detail)
 
 
 class LLMCommentaryService(CommentaryService):
@@ -277,8 +287,12 @@ class LLMCommentaryService(CommentaryService):
         return f"真人解说语气参考（只学语气与句式，其中比分/人名/情节不许用）：\n{refs}\n"
 
     def _query_for(self, event: dict[str, Any]) -> str:
+        kind = str(event.get("type", ""))
+        if kind == "action":
+            zh = str(event.get("action_zh") or event.get("action") or "")
+            return f"篮球 {zh}".strip()
         scene = str(event.get("scene") or "").strip()
-        return scene if scene else _TYPE_QUERY.get(str(event.get("type", "")), "篮球比赛 球员")
+        return scene if scene else _TYPE_QUERY.get(kind, "篮球比赛 球员")
 
     def _prompt(self, event: dict[str, Any]) -> str:
         parts = [self._event_block(event, 1)]

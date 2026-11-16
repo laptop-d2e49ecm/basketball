@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import heapq
 import json
 import logging
 from datetime import UTC, datetime
@@ -13,6 +14,7 @@ from app.core.config import settings
 from app.core.coords import normalize_xyxy
 from app.core.device import resolve_torch_device
 from app.db import task_repo
+from worker.action_service import ActionRecognizer, VideoFrameLoader, iter_action_events
 from worker.commentary.base import CommentaryService
 from worker.commentary.stub import StubCommentaryService
 from worker.event_service import iter_heuristic_events
@@ -169,6 +171,51 @@ def process_task(task: dict[str, Any], model: Any) -> None:
                 )
                 last_progress_notice = progress
 
+    # 动作识别阶段（BASKETBALL_ACTION=on 且权重存在时启用；任何失败都回退启发式事件）
+    action_events: list[dict[str, Any]] = []
+    if settings.action_recognition_enabled:
+        task_repo.update_task(
+            task_id,
+            stage="action",
+            progress=0.99,
+            frames_done=frames_done,
+            notify={
+                "type": "progress",
+                "stage": "action",
+                "progress": 0.99,
+                "frames_done": frames_done,
+                "frames_total": frames_total,
+                "frame_step": frame_step,
+            },
+        )
+        try:
+            recognizer = ActionRecognizer(settings.action_model_path, settings.action_meta_path)
+            if recognizer.is_available():
+                loader = VideoFrameLoader(video_path)
+                try:
+                    action_events = list(
+                        iter_action_events(
+                            detections_path,
+                            loader,
+                            recognizer,
+                            conf_threshold=settings.action_conf_threshold,
+                            cooldown_ms=settings.action_cooldown_ms,
+                        )
+                    )
+                finally:
+                    loader.close()
+                logger.info("action stage: %d events for task %s", len(action_events), task_id)
+            else:
+                logger.warning(
+                    "动作模型不可用（%s / %s），本任务仅启发式事件",
+                    settings.action_model_path,
+                    settings.action_meta_path,
+                )
+        except Exception:
+            logger.exception("动作识别失败（task %s），回退启发式事件", task_id)
+            action_events = []
+    action_events.sort(key=lambda e: e["t_ms"])
+
     task_repo.update_task(
         task_id,
         stage="commentary",
@@ -205,7 +252,12 @@ def process_task(task: dict[str, Any], model: Any) -> None:
                 )
 
         batch: list[dict[str, Any]] = []
-        for event in iter_heuristic_events(detections_path):
+        merged = heapq.merge(
+            iter_heuristic_events(detections_path),
+            action_events,
+            key=lambda event: event["t_ms"],
+        )
+        for event in merged:
             batch.append(event)
             if len(batch) >= batch_size:
                 _flush(batch)

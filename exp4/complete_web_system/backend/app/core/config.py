@@ -32,6 +32,26 @@ class Settings:
     image_size: int = int(os.getenv("BASKETBALL_IMAGE_SIZE", "640"))
     video_frame_step: int = max(1, int(os.getenv("BASKETBALL_FRAME_STEP", "2")))
     inference_device: str = os.getenv("BASKETBALL_DEVICE", "auto")
+    # 动作识别（实验5 视觉动作线）：on 时检测后按 track 滑窗识别 14 类动作事件；
+    # 权重缺失或推理失败自动回退启发式事件，不影响任务完成。
+    # 部署用 FP32 ONNX（INT8 动态量化在 3D 卷积上慢约 28 倍，见 scripts/06_action 评估）
+    action_recognition_enabled: bool = (
+        os.getenv("BASKETBALL_ACTION", "off").strip().lower() in {"1", "on", "true", "yes"}
+    )
+    action_model_path: Path = Path(
+        os.getenv(
+            "BASKETBALL_ACTION_MODEL_PATH",
+            str(BACKEND_DIR / "weights" / "action_mc3_18.onnx"),
+        )
+    )
+    action_meta_path: Path = Path(
+        os.getenv(
+            "BASKETBALL_ACTION_META_PATH",
+            str(BACKEND_DIR / "weights" / "action_clf_meta.json"),
+        )
+    )
+    action_conf_threshold: float = float(os.getenv("BASKETBALL_ACTION_CONF", "0.6"))
+    action_cooldown_ms: int = int(os.getenv("BASKETBALL_ACTION_COOLDOWN_MS", "3000"))
     task_backend: str = os.getenv("TASK_BACKEND", "worker").strip().lower()
     celery_broker_url: str = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
     # 视频事件解说实现：stub=模板句（默认，无需 key），llm=大模型生成

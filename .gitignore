@@ -88,3 +88,10 @@ Ultralytics/
 
 # 复盘归档（2026-11-12）：非主线文件统一收口；已被 git mv 进来的跟踪文件不受此规则影响
 _归档/
+
+# 实验5 动作识别线：clip 数据集可由 scripts/06_action/build_clips.py 从 raw 重建；冒烟产物不入库
+data/action_clips/
+data/action_clips_smoke/
+models/exp5_action_smoke/
+# Kaggle 交接包的本地解压目录不入库（sha256 文本保留作证据）
+action_clips_kaggle*/
