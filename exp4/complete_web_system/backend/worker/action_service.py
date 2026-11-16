@@ -15,6 +15,7 @@ FRAME_SIZE_FALLBACK = 112
 NUM_FRAMES = 16
 BOX_EXPAND = 1.2
 MIN_WINDOW_FRAMES = 5
+ZONE_GRID = 4  # 冷却键的空间网格（归一化 4×4 分区）：缓解跟踪 ID 碎片绕过冷却
 
 
 class ActionRecognizer:
@@ -77,7 +78,9 @@ class ActionRecognizer:
 
 def _expand_square(cx: float, cy: float, w: float, h: float,
                    img_w: int, img_h: int) -> tuple[int, int, int, int] | None:
-    side = max(w, h) * BOX_EXPAND * img_w
+    # 与训练侧 build_clips._expand_square 同口径：先转像素再 max(w,h)*1.2。
+    # 旧实现 max(w, h) * img_w 把归一化高按宽度放大（1280/720 ≈ 1.78×），crop 偏大。
+    side = max(w * img_w, h * img_h) * BOX_EXPAND
     if side < 16:
         return None
     left = max(0.0, cx * img_w - side / 2)
@@ -103,7 +106,8 @@ def iter_action_events(
 
     frame_loader(frame_idx 列表) 返回对应原始帧（BGR 或 None），
     生产实现走 cv2 seek，测试可注入桩。背景类不产出事件；
-    同 (track, action) 冷却 cooldown_ms。
+    同 (位置分区, 动作) 冷却 cooldown_ms——按 ZONE_GRID 网格而非 track_id，
+    同一球员换新 track_id 后仍在原分区，不会绕过冷却。
     """
     tracks: dict[int, list[dict[str, Any]]] = {}
     image_size = (1280, 720)
@@ -124,7 +128,7 @@ def iter_action_events(
     if not tracks:
         return
 
-    last_emitted: dict[tuple[int, str], int] = {}
+    last_emitted: dict[tuple[int, int, str], int] = {}
     for tid in sorted(tracks):
         observations = sorted(tracks[tid], key=lambda o: o["t_ms"])
         start_ms = observations[0]["t_ms"]
@@ -152,9 +156,10 @@ def iter_action_events(
             label, prob = recognizer.classify(crops)
             if label == recognizer.background_class or prob < conf_threshold:
                 continue
-            if center_ms - last_emitted.get((tid, label), -10**9) < cooldown_ms:
+            zone = (int(window[-1]["cx"] * ZONE_GRID), int(window[-1]["cy"] * ZONE_GRID))
+            if center_ms - last_emitted.get((*zone, label), -10**9) < cooldown_ms:
                 continue
-            last_emitted[(tid, label)] = center_ms
+            last_emitted[(*zone, label)] = center_ms
             yield {
                 "t_ms": center_ms,
                 "type": "action",

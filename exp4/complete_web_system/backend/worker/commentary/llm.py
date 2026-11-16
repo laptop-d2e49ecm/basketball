@@ -43,8 +43,8 @@ SYSTEM_PROMPT = (
 )
 
 BATCH_SYSTEM_PROMPT = SYSTEM_PROMPT + (
-    "\n现在是批量模式：输入共 N 条事件，你输出 N 行，第 i 行对应第 i 条事件，"
-    "每行以'i. '开头，行内只要该条的解说词本身。"
+    "\n现在是批量模式：输入共 N 条事件，你输出 N 行，第 k 行对应第 k 条事件，"
+    "每行以行号数字开头（如'1. ''2. '），行内只要该条的解说词本身。"
 )
 
 _TYPE_TEXT = {
@@ -304,7 +304,7 @@ class LLMCommentaryService(CommentaryService):
         blocks = [self._event_block(ev, i + 1) for i, ev in enumerate(events)]
         parts = ["\n".join(blocks)]
         parts.append(self._style_block(self._query_for(events[0])))
-        parts.append(f"共 {len(events)} 条事件，逐条输出 {len(events)} 行，第 i 行以'i. '开头，只要解说词本身。")
+        parts.append(f"共 {len(events)} 条事件，逐条输出 {len(events)} 行，第 k 行以'k. '开头（k 为行号数字），只要解说词本身。")
         return "\n".join(p for p in parts if p)
 
     # ---- 调用 ----
@@ -324,7 +324,7 @@ class LLMCommentaryService(CommentaryService):
         lines: list[str] = []
         for raw in content.splitlines():
             s = _clean(raw)
-            s = re.sub(r"^\d+\s*[\.、．)）]\s*", "", s)
+            s = re.sub(r"^(?:\d{1,3}|[a-zA-Z]{1,3})\s*[\.、．)）]\s*", "", s)
             if s:
                 lines.append(s)
         return lines[:n]
