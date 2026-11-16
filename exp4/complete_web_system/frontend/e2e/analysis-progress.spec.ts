@@ -127,6 +127,7 @@ test('completed task shows whole narration and answers with its task id', async 
   await frame.locator('#fileInput').setInputFiles(file)
   await frame.getByRole('button', { name: '确认分析' }).click()
   await expect(frame.locator('#narrationText')).toHaveText('球员疑似传球，随后移动方向变化。')
+  await expect(frame.locator('#speakNarration')).toBeVisible()
   await frame.locator('#taskQuestion').fill('开场发生了什么？')
   await frame.locator('#askTask').click()
   await expect(frame.locator('#taskAnswer')).toHaveText('该任务出现疑似传球。')
