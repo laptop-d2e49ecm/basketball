@@ -1,7 +1,0 @@
-{
-  "threads": 4,
-  "mode": "LATENCY",
-  "fused_channels_last": false,
-  "source_model": "models/a2_openvino_fp32/model.xml",
-  "label": "OpenVINO FP32 4 threads"
-}

@@ -1,9 +1,0 @@
-{
-  "passed": true,
-  "model": "gpu/models/a2_distilled_trt_fp16.engine",
-  "model_sha256": "9b7aad25ad10234ae418782be0dabb53a1c38c6e1282a6ef6485b2a71859b6a1",
-  "image": "data/images/test/v_-6Os86HzwCs_c001__f000005.jpg",
-  "detections": 9,
-  "output_sha256": "23468385a302ab7fa246421516456cc95b00b6e760405096b6c8b00e29cb4d33",
-  "pipeline": true
-}

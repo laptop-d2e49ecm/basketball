@@ -2,9 +2,11 @@
 
 ## 当前 Web 应用（第三版）
 
-**最新版入口：[exp4/complete_web_system](exp4/complete_web_system/README.md)**。前端、配套后端、模型和样例都在此目录；下载后按说明安装依赖，双击 `start_project_v3.bat`。旁边的 [complete_web_system.zip](exp4/complete_web_system.zip) 与该目录同步。
+**最新版入口：[exp4/complete_web_system](exp4/complete_web_system/README.md)**。前端、配套后端、模型和样例都在此目录；下载后按说明安装依赖，双击仓库根目录的 `一键启动.bat`（或本目录内 `start_project_v3.bat`）。
 
-默认 `master` 已更新为第三版，固定标签为 `frontend-v3.0.0`。第一版 `frontend-v1.0.0`、第二版 `frontend-v2.0.0` 保留原提交。`exp4/frontend/`、`exp4/backend/` 是早期模块源码，当前完整系统请使用上述目录。
+默认 `master` 已更新为第三版，固定标签为 `frontend-v3.0.0`。第一版 `frontend-v1.0.0`、第二版 `frontend-v2.0.0` 保留原提交，早期模块源码见 `_归档/` 与历史标签。
+
+全仓 198 个 Python 文件的逐文件导览见 [Python文件地图.md](Python文件地图.md)。
 
 **真实视频联调记录**：[Edge 完整流程验收与原始证据](exp4/complete_web_system/reports/video-integration-20261106/README.md)，含 36.04 秒视频、450 个采样帧、19 条事件、13 项检查，以及 35.008 秒 Worker 耗时和 36.446 秒上传至结果可见耗时。
 

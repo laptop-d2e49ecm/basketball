@@ -1,6 +1,0 @@
-task: detect
-stride: 32
-batch: 4
-imgsz: [640, 640]
-names: {0: player}
-args: {dynamic: true, nms: false}
