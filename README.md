@@ -1,18 +1,29 @@
 # 篮球 AI 赛事解说员 —— 课程项目总仓库
 
-## 当前 Web 应用（第三版）
+**最终成品**：上传一段篮球比赛视频 → 系统看懂画面（谁在哪儿、发生了什么动作）→ 逐事件生成中文直播解说 → 汇成整场解说稿 → 神经语音“说给你听”，并可随时用自然语言向 AI 解说员追问。
 
-**最新版入口：[exp4/complete_web_system](exp4/complete_web_system/README.md)**。前端、配套后端、模型和样例都在此目录；下载后按说明安装依赖，双击仓库根目录的 `一键启动.bat`（或本目录内 `start_project_v3.bat`）。
+课程 5 个实验串成这条流水线：**数据（实验1）→ 球员检测（实验2）→ 模型优化（实验3）→ Web 系统（实验4）→ 大模型 Agent 解说（实验5）**，全部完成并上线为同一套可运行系统。
 
-默认 `master` 已更新为第三版，固定标签为 `frontend-v3.0.0`。第一版 `frontend-v1.0.0`、第二版 `frontend-v2.0.0` 保留原提交（历史标签可溯，早期模块源码已移出仓库）。
+## 快速开始
 
-全仓 198 个 Python 文件的逐文件导览见 [Python文件地图.md](Python文件地图.md)。
+1. 双击仓库根目录 **`一键启动.bat`**（依次拉起 FastAPI 后端 8000、视频 Worker、Vite 前端 5173，就绪后自动开浏览器；`一键停止.bat` 收尾）。
+2. 浏览器打开 `http://127.0.0.1:5173/courtvision.html`（深色控制台工作台），上传 MP4、可填视频名/对阵/比分 → 等“检测 → 动作识别 → 解说生成”三阶段完成 → 看事件解说带、人数曲线、整场解说，点「播放解说」听神经语音。
+3. AI 对话：`http://127.0.0.1:5173/agent`，或直接用工作台右侧对话面板（支持图像路径、解说文本、任务编号事件查询等）。
 
-**真实视频联调记录**：[Edge 完整流程验收与原始证据](exp4/complete_web_system/reports/video-integration-20261106/README.md)，含 36.04 秒视频、450 个采样帧、19 条事件、13 项检查，以及 35.008 秒 Worker 耗时和 36.446 秒上传至结果可见耗时。
+首次使用需安装依赖：仓库根 `.venv`（`pip install -r requirements.txt` + 后端 `requirements-dev.txt`）与前端 `pnpm install`，详见 [exp4/complete_web_system/README.md](exp4/complete_web_system/README.md)。大模型解说需在 `exp4/complete_web_system/backend/.env` 配 key（模板 `exp5/.env.example`），未配置时其余功能不受影响。
 
-**最终成品**：上传一段篮球比赛视频 → 系统看懂画面（谁在哪儿、发生了什么动作）→ 用中文实时生成逐事件解说。
+## 系统一览（实验 4+5 最终形态）
 
-课程 5 个实验串成这条流水线：**数据（实验1）→ 球员检测（实验2）→ 模型优化（实验3）→ Web 系统（实验4）→ 大模型 Agent 解说（实验5）**。
+- **三阶段视频流水线**：A2′ YOLOv8n ONNX INT8（3.5 MB，mAP50 干净口径 0.988）检测+ByteTrack 跟踪 → MC3-18 动作识别（16 帧×112，MultiSports 18 类并为 13 类+背景，演示配置 conf 0.7／4×4 分区冷却 8 s）→ 大模型批量解说（一次 5 条，配额降为 1/5；画面观察 5 秒时间桶；403/429 熔断 10 分钟）。
+- **防幻觉三层禁词**：硬禁（教练/裁判/命中/进球）永禁；比分类（得分/比分/领先/落后）用户填比分才解禁；画面证据类（外线/篮下/球权）画面观察有证据才解禁；兜底按句剔除不整篇失败。上传填写的对阵/比分作为可信事实注入。
+- **整场解说 + 神经语音**：Agent 分页取事件按 20 事件/段、30–90 字生成连贯解说稿（开场带到对阵比分）；edge-tts 云健体育解说音色，含「！」高潮句 +35% 语速、+25Hz 音调，MP3 缓存自动重合成。
+- **Agent**：`/api/v1/agent/chat`，5 个工具（球员检测/解说分类/真人解说检索/图文匹配/任务事件分页查询），工具选择 10/10；DeepSeek 官方直连端到端均值 1.77 s（中转口径 49.96 s——瓶颈在链路不在模型）。
+- **微调**：Qwen3-1.7B 4-bit QLoRA（100 条指令），held-out 79.1%→94.2%，反超 DeepSeek 零样本 86.0%，经 `EXP5_TEXT_BACKEND=lora` 无缝接回工具。
+- **实测**（36 秒 demo）：61 个事件（动作 43，覆盖传球/运球/干扰投篮等 6 类）、整场解说 4 段 150 字、语音 175 KB MP3；后端 pytest 47 项全绿，浏览器 e2e 13 项全绿。
+
+历史版本：第一版 `frontend-v1.0.0`、第二版 `frontend-v2.0.0`、第三版 `frontend-v3.0.0` 标签可溯；旧演示页与 v1 训练产物已随“只留最终版”移出，接口与证据链在 git 历史可查。
+
+全仓 198 个 Python 文件的逐文件导览见 [Python文件地图.md](Python文件地图.md)。真实视频联调历史记录：[Edge 完整流程验收（2026-11-06，启发式事件时期）](exp4/complete_web_system/reports/video-integration-20261106/README.md)。
 
 > 本 README 是实验 1/2/3 的**全部真实执行记录**（数字均可在仓库指标 json 与训练产物中复核）。
 > 数据溯源见 `docs/PROVENANCE.md`，实验 2 选型与结果口径见 `docs/EXP2_MODEL_SELECTION.md`，
@@ -156,7 +167,7 @@ python scripts/03_train/train_yolo.py --run A1,A2,M1 --epochs 50 --patience 15 -
 - **量化（任务 3.1.1）**：ONNX 13.2→3.6MB（**-72.9%**），精度无损（0.419→0.420）；校准实验 E1/E2/per-channel 差异 <0.2pp，校准集与粒度不敏感。干净口径下真实代价显形于定位精度：mAP50-95 -1.7pp（0.734→0.717），mAP50 与各尺寸档无损。关键工程点：检测头解码（DFl/Softmax/坐标）保持 FP32，避免概率分数舍入归零。
 - **蒸馏（任务 3.1.3）**：单类检测下 KL 信息量退化——P1 用前景加权特征蒸馏（dis∈{3,6,9} 消融），**dis=9 最优 0.422**（超基线 +0.3pp、距教师 -0.2pp，任务书双达标）；P2 按任务书 0.3/0.7 口径复合损失（0.3·Ldet+0.5·Lfeat+0.2·LKD，Bernoulli KL，温度 T=5/8/10 扫参选 T=6）。蒸馏不改变学生结构（3.13M 参数/8.6 GFLOPs 不变）；蒸馏后再量化存在 -0.6pp 交互损失（干净口径下基本消失）。
 - **推理加速（任务 3.1.4 + 阶段 2）**：GPU（RTX 3050）PyTorch 23.08ms → TensorRT FP16 **9.69ms（-58.0%）**、批 32 吞吐 63.78→232.37 图/秒（**+264.4%**）；CPU（Ryzen 7 5800H）OpenVINO FP32 调优 72.22→56.07ms（-22.4%）、吞吐 +99.5%，ORT 吞吐 +55.6%。噪声鲁棒性 σ=0.02 下 FP32/INT8 均无损；千次推理内存波动 ≤5%。
-- **部署选型矩阵（实验 4 已采用）**：CPU 体积优先 → `a2_int8_val346.onnx`（3.6MB，图像检测 API）；CPU 精度保守 → OpenVINO FP32；GPU → 蒸馏学生 TRT FP16 引擎；精度替补 → `a2_distill_dis9.pt`。统一 `Detector` 端到端接口（.pt/.onnx/.xml/.engine）随 P2 交付实验 4。
+- **部署选型矩阵（实验 4 已采用）**：CPU 体积优先 → `a2_int8_val346.onnx`（3.6MB；v1 产物见 git 历史，实验 4 实际部署 v2 复验版 `a2v2_int8_val173.onnx` 3.5MB）；CPU 精度保守 → OpenVINO FP32；GPU → 蒸馏学生 TRT FP16 引擎；精度替补 → `a2_distill_dis9.pt`。统一 `Detector` 端到端接口（.pt/.onnx/.xml/.engine）随 P2 交付实验 4。
 
 ### 3.3 数据质量重大发现：`_aug0` 标注缺陷与实验 2 勘误
 
@@ -167,6 +178,27 @@ python scripts/03_train/train_yolo.py --run A1,A2,M1 --epochs 50 --patience 15 -
 管线已修复（2026-10-30）：v2 变换改传 PIL 图像，合成图验证框图同步（IoU 0.980）；历史副本未重生成（下游无需求）。正式干净划分 `data/splits/yolo/data_clean.yaml`（train 2158 / val 173 / test 190，无增强副本），**实验 4/5 报精度一律用它**。
 
 ---
+
+## 实验 4：前后端 Web 系统（2026-11 完成）
+
+最终系统在 [exp4/complete_web_system](exp4/complete_web_system/README.md)：FastAPI 后端 + 独立视频 Worker + Vue 3 外壳 + 深色控制台工作台 `frontend/public/courtvision.html`（经 `/video-v3` 嵌入，也可整页直接访问）。
+
+- **架构**：前后端分离 + 四进程（前端 5173 / API 8000 / Worker / 可选 Celery+Redis）；任务状态机 `pending→running→ready/failed` 经 SQLite 解耦，进度走 WebSocket 推送 + REST 轮询兜底；统一信封 `{code, result, msg}` 与全局异常→错误码映射（400/404/409/429/500/504）。
+- **接口**：16 个 REST + WS（健康/检测/批量检测/文本分类/图文匹配/任务增删查/事件/检测帧/兼容预览/整场解说三件套/Agent 对话/模型元信息），`/api/v1` 前缀，在线文档 `/docs`。
+- **工作台**：上传弹窗（MP4 + 名称/对阵/比分）→ 画面帧条（点击跳转）、事件解说带（动作标签+置信度）、人数曲线、整场解说面板（重试/播放解说/导出全文与 MP3）、右侧 AI 对话、最近任务管理。
+- **兼容与运维**：浏览器放不动的历史视频由后台转 H.264/AAC 兼容预览（推理始终读原视频）；`一键启动.bat`/`一键停止.bat` 全流程一条命令。
+- **测试**：后端 pytest 47 项（坐标契约、状态机、解说/整场解说/语音/Agent 接口），Playwright e2e 13 项（Edge 通道；响应式 390/768/1440、最近任务导航、上传-进度-结果全流程、失败与清除重传）。
+
+## 实验 5：大模型 Agent 与视频解说主线（2026-11 完成）
+
+Agent 与微调线代码在 `exp5/`，运行形态全部并入实验 4 后端（`/api/v1/agent/chat`，LangChain 1.x `create_agent`）。
+
+- **Agent 五工具**：`player_detect`（含 f000005 简写）、`commentary_classify`（joblib/LoRA 双后端开关）、`retrieve_commentary`（BM25/TF-IDF 检索真人解说）、`image_text_match`、`query_video_events`（offset/limit 分页，默认 20 上限 50）。工具选择 10/10=100%；SQLite 会话断点续聊；工具失败不抛异常、返回字符串让 Agent 继续。
+- **两口径延迟对照**：同一批 10 问句，ChatAnywhere 中转均值 49.96 s／P95 186 s（7/10 超 5 s）vs DeepSeek 官方直连 1.77 s／P95 2.20 s（0/10）——“慢”是链路问题不是模型问题。
+- **QLoRA 微调**：Qwen3-1.7B 4-bit nf4 + LoRA（r=16，q/k/v/o，0.42% 参数），100 条指令（60 分类+40 生成）；10 道考题 80%→100%，86 条 held-out 79.1%→94.2%，反超 DeepSeek 零样本 86.0%。训练 8 epoch 320 s（RTX 5060），产物 `exp5/adapters/`（网盘分发，不入库）。
+- **动作识别线**：MultiSports 6,247 行事件表（18 类）按语义并为 13 类动作+背景，MC3-18 训练产物在 `models/exp5_action/`（含 r2plus1d_18 对照），部署 FP32 ONNX（INT8 动态量化在 3D 卷积上慢约 28 倍）；数据构建 `scripts/06_action/build_clips.py`（GT tubes 采样 16 帧 112×112 + 部署检测器构造 `_none` 背景类）。
+- **解说生成工程**：批量 5 条/次 + 风格参考按批内动作各取（style_used 13/13）+ 完整句护栏；画面观察（视觉大模型描述事件时刻关键帧，5 秒时间桶复用、单任务 ≤16 次）；配额熔断（403/429/额度错误冷却 10 分钟）+ 缺行补模板句；真实 run 实证 61 事件/上一代 10 条裸动作句→0 条。
+- **踩坑记录**：中转返回“reasoning+text 块列表”导致两处解析乱码，统一 `content_text()` 归一（含历史会话回放）修复并加单测。
 
 ## 脚本流水线（`scripts/`，原始包可按 CLEANUP_LOG 重建）
 
@@ -199,7 +231,7 @@ basketball/
 │   ├── raw/texts/livetext/   # 解说原始 jsonl（每场一个）+ crawl_meta.json
 │   ├── processed/            # multisports（events.csv）/ vision_ms（补充帧）/ vision / texts
 │   └── splits/               # yolo/（实验2主数据集 4316/346/380）+ split_summary.json
-├── scripts/                  # 01 获取 / 02 清洗 / 03 增强+训练 / 04 标准化 / 05 评估
+├── scripts/                  # 01 获取 / 02 清洗 / 03 增强+训练 / 04 标准化 / 05 评估 / 06 动作线+报告
 ├── configs/                  # Data-Juicer 配置（解说语料复跑待用）
 ├── src/                      # PyTorch Dataset 封装（任务 1.3.2）
 ├── docs/                     # 推导/溯源/数据卡/合规/清理日志/实验2选型/云端步骤
@@ -207,9 +239,9 @@ basketball/
 ├── models/exp2_v2/           # 实验 2 训练产物（最终版）：A1_yolov8n / A2_yolov8n / A2_yolov8m(=M1)
 │                             # （results.csv、训练曲线与混淆矩阵；v1 归档见 git 历史）
 ├── models/exp3_v2/           # 实验 3 优化复验产物（评估/量化链复测；v1 全档案见 git 历史）
-├── models/exp5_action/       # 实验 5 动作识别训练产物
-├── exp4/                     # 实验 4/5 最终系统：FastAPI 后端 + Vue3 前端 + 解说工作台
-└── exp5/                     # 实验 5：Agent 与微调线
+├── models/exp5_action/       # 实验 5 动作识别训练产物（mc3_18 部署 + r2plus1d_18 对照）
+├── exp4/                     # 实验 4/5 最终系统：FastAPI 后端 + Vue3 前端 + courtvision 工作台
+└── exp5/                     # 实验 5：Agent 工具/微调线（数据、评测脚本、train_lora.py）
 ```
 
 ## 实验报告要求 ↔ 产物对照
@@ -227,7 +259,9 @@ basketball/
 | 实验3：优化对比表 + 精度损失分析 | 正式报告表3 双口径总表、图2/3/15（报告随课程单独提交） |
 | 实验3：速度对比 + 异构硬件一致性 | 报告表5（GPU TRT）/ 表6（CPU ORT/OpenVINO）/ 表7 汇总 |
 | 实验3：关联分析（数据→量化误差 / 模型→剪枝） | 报告五.8 两段；v1 全档案索引见 git 历史 |
+| 实验5：工具调用准确率 ≥90% | 10 轮任务书式问句 10/10 = 100%（`exp5/eval/`） |
+| 实验5：Agent 端到端 ≤5 s | DeepSeek 官方直连均值 1.77 s / P95 2.20 s（中转口径 49.96 s 如实记录） |
 
-## 下一步（实验 4-5 衔接）
+## 实验 4-5 衔接（已完成）
 
-实验 3 已交付部署矩阵与统一 `Detector` 接口。实验 4 Web 系统（进行中，`exp4/`）：图像检测 API 用 `a2_int8_val346.onnx`，视频主线用 A2 best.pt + ByteTrack，框坐标契约一律归一化（实验 1 坐标 bug 的教训已写进实验 4 交接契约）。实验 5 动作识别（MultiSports 18 类）+ 大模型 Agent 解说（4.0 万条语料 RAG 与风格微调）；实验 4/5 报精度一律用 `data_clean.yaml` 干净口径。
+实验 3 交付的部署矩阵与统一 `Detector` 接口已被实验 4/5 全部采用：图像检测 API 用 `a2v2_int8_val173.onnx`（干净口径复验版），视频主线用 A2′ best.pt + ByteTrack，框坐标契约一律归一化（实验 1 坐标 bug 的教训写进了实验 4 交接契约）。实验 5 的动作识别（13 类）与大模型 Agent 解说已上线为“检测 → 动作 → 解说”三阶段主线；实验 4/5 报精度一律用 `data/splits/yolo/data_clean.yaml` 干净口径。
