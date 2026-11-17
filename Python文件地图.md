@@ -279,3 +279,5 @@ MultiSports GT ──→ 06动作(build_clips→MC3D-18→ONNX) ─────�
 ---
 
 > 2026-11-17 仓库整理：models 下 exp2/exp3 的 v1 训练产物与 a2_cpu_tuned、根目录 start/stop_exp5.bat 已删除（仅保留 v2 最终版，历史可溯）；本文 C 节描述的 v1 脚本如已不存在，请以 git 历史为准。
+
+> 2026-11-17 追加：`_归档/` 与 `report/`（课程报告及生成脚本）已移出 git 仓库、仅本地保留——本文 E/G 两节描述的文件如不在仓库中，以本地目录或 git 历史为准。

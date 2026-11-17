@@ -95,3 +95,7 @@ data/action_clips_smoke/
 models/exp5_action_smoke/
 # Kaggle 交接包的本地解压目录不入库（sha256 文本保留作证据）
 action_clips_kaggle*/
+
+# 2026-11-17 整理：归档区与课程报告不再入库（本地保留，历史可溯）
+_归档/
+report/

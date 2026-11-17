@@ -4,7 +4,7 @@
 
 **最新版入口：[exp4/complete_web_system](exp4/complete_web_system/README.md)**。前端、配套后端、模型和样例都在此目录；下载后按说明安装依赖，双击仓库根目录的 `一键启动.bat`（或本目录内 `start_project_v3.bat`）。
 
-默认 `master` 已更新为第三版，固定标签为 `frontend-v3.0.0`。第一版 `frontend-v1.0.0`、第二版 `frontend-v2.0.0` 保留原提交，早期模块源码见 `_归档/` 与历史标签。
+默认 `master` 已更新为第三版，固定标签为 `frontend-v3.0.0`。第一版 `frontend-v1.0.0`、第二版 `frontend-v2.0.0` 保留原提交（历史标签可溯，早期模块源码已移出仓库）。
 
 全仓 198 个 Python 文件的逐文件导览见 [Python文件地图.md](Python文件地图.md)。
 
@@ -17,7 +17,7 @@
 > 本 README 是实验 1/2/3 的**全部真实执行记录**（数字均可在仓库指标 json 与训练产物中复核）。
 > 数据溯源见 `docs/PROVENANCE.md`，实验 2 选型与结果口径见 `docs/EXP2_MODEL_SELECTION.md`，
 > 云端训练步骤见 `docs/COLAB_STEPS.md`，2026-10-13 数据清理记录见 `docs/CLEANUP_LOG.md`。
-> 实验 3 全档案索引 `models/exp3/README.md`，正式报告 `report/实验3报告.docx/pdf`（P1+P2 合并稿）。
+> 实验 3 正式报告（P1+P2 合并稿）与 v1 全档案索引不在仓库（见 git 历史提交），复验产物在 `models/exp3_v2/`。
 > **注意**：实验 3 复核发现实验 1 增强副本存在标注缺陷并勘误了实验 2 的增强收益结论，见实验 3 节。
 
 ---
@@ -117,7 +117,7 @@ best.pt 由综合适应度（0.1×mAP50+0.9×mAP50-95）选轮；耗时为 resul
 
 ### 2.6 训练产物与复现
 
-- **产物**：`models/exp2/{A1_yolov8n, A2_yolov8n, A2_yolov8m}`——各组 `results.csv`、`args.yaml`、`weights/best.pt`、训练曲线 `results.png`、混淆矩阵与 val_batch 预测图（2026-10-22 归档）。逐组选轮口径与 8 组设计详见 `docs/EXP2_MODEL_SELECTION.md`。
+- **产物**：`models/exp2_v2/{A1_yolov8n, A2_yolov8n, A2_yolov8m}`——各组 `results.csv`、`args.yaml`、`weights/best.pt`、训练曲线 `results.png`、混淆矩阵与 val_batch 预测图（2026-10-22 归档）。逐组选轮口径与 8 组设计详见 `docs/EXP2_MODEL_SELECTION.md`。
 - **复现**：
 
 ```bash
@@ -135,11 +135,11 @@ python scripts/03_train/train_yolo.py --run A1,A2,M1 --epochs 50 --patience 15 -
 
 ## 实验 3：模型压缩与推理优化（2026-10-30 完成）
 
-正式报告 `report/实验3报告.docx/pdf`（P1+P2 合并稿，17 图 7 表），全档案索引与产物清单 `models/exp3/README.md`。优化对象：实验 2 部署选型 **A2 YOLOv8n**（mAP50 0.419，ultralytics 8.4.176 锁版复测）与教师 **M1 YOLOv8m**（0.424）。
+正式报告（P1+P2 合并稿，17 图 7 表）随课程报告单独提交，不在仓库；v1 全档案见 git 历史，复验产物在 `models/exp3_v2/`。优化对象：实验 2 部署选型 **A2 YOLOv8n**（mAP50 0.419，ultralytics 8.4.176 锁版复测）与教师 **M1 YOLOv8m**（0.424）。
 
 ### 3.1 分工与主线
 
-两人双线并行：**P1 精度线**（INT8 静态量化、前景加权特征蒸馏、误差与鲁棒性分析；本地 CPU + Kaggle T4）与 **P2 速度线**（复合损失蒸馏、TensorRT FP16 引擎与端到端流水线、CPU 三后端对照；本机 RTX 3050）。产物：`models/exp3/models/` 10 个模型、`results/` 13 个 JSON + 图表、`p2_delivery/`（CPU/GPU 全套脚本与两轮复测）、`p2_check/`（独立复核）。
+两人双线并行：**P1 精度线**（INT8 静态量化、前景加权特征蒸馏、误差与鲁棒性分析；本地 CPU + Kaggle T4）与 **P2 速度线**（复合损失蒸馏、TensorRT FP16 引擎与端到端流水线、CPU 三后端对照；本机 RTX 3050）。产物（v1 全套见 git 历史）：`models/exp3/` 10 个模型、13 个 JSON + 图表、CPU/GPU 全套脚本与两轮复测、独立复核；复验产物在 `models/exp3_v2/`。
 
 ### 3.2 主结果（双口径：全集 test 380 与干净 test 190 原始帧）
 
@@ -204,12 +204,12 @@ basketball/
 ├── src/                      # PyTorch Dataset 封装（任务 1.3.2）
 ├── docs/                     # 推导/溯源/数据卡/合规/清理日志/实验2选型/云端步骤
 ├── logs/                     # 各步骤运行日志（历史记录）
-├── models/exp2/              # 实验 2 训练产物：A1_yolov8n / A2_yolov8n / A2_yolov8m(=M1)
-│                             # （results.csv、best.pt、训练曲线与混淆矩阵，2026-10-22 归档）
-├── models/exp3/              # 实验 3 优化产物：10 个模型（INT8/蒸馏系）、results 13 JSON、
-│                             # p2_delivery（CPU/GPU 全套）、p2_check 复核，档案 README.md
-├── exp4/                     # 实验 4 Web 系统（进行中：FastAPI 后端 + Vue3 前端）
-└── report/                   # 实验报告与图表（实验3正式报告 docx/pdf 在此）
+├── models/exp2_v2/           # 实验 2 训练产物（最终版）：A1_yolov8n / A2_yolov8n / A2_yolov8m(=M1)
+│                             # （results.csv、训练曲线与混淆矩阵；v1 归档见 git 历史）
+├── models/exp3_v2/           # 实验 3 优化复验产物（评估/量化链复测；v1 全档案见 git 历史）
+├── models/exp5_action/       # 实验 5 动作识别训练产物
+├── exp4/                     # 实验 4/5 最终系统：FastAPI 后端 + Vue3 前端 + 解说工作台
+└── exp5/                     # 实验 5：Agent 与微调线
 ```
 
 ## 实验报告要求 ↔ 产物对照
@@ -222,11 +222,11 @@ basketball/
 | 实验1：自动化策展配置与效率对比 | `configs/data_juicer_text.yaml`（134s vs 手工 0.29s） |
 | 实验1：数据卡 + 隐私合规 | `docs/DATA_CARD.md`、`docs/PRIVACY_CHECKLIST.md` |
 | 实验2：数据-模型关联 | YOLO 格式单类框 → YOLOv8 检测（nc=1 `player`） |
-| 实验2：增强因果对比实验 | A1 vs A2（0.371 → 0.418），`models/exp2/` 真实产物 |
-| 实验2：训练优化与容量对比 | `models/exp2/*/results.csv` + `docs/EXP2_MODEL_SELECTION.md` |
-| 实验3：优化对比表 + 精度损失分析 | `report/实验3报告.pdf` 表3 双口径总表、图2/3/15 分层与逐图误差 |
+| 实验2：增强因果对比实验 | A1 vs A2（0.371 → 0.418），`models/exp2_v2/` 真实产物 |
+| 实验2：训练优化与容量对比 | `models/exp2_v2/*/results.csv` + `docs/EXP2_MODEL_SELECTION.md` |
+| 实验3：优化对比表 + 精度损失分析 | 正式报告表3 双口径总表、图2/3/15（报告随课程单独提交） |
 | 实验3：速度对比 + 异构硬件一致性 | 报告表5（GPU TRT）/ 表6（CPU ORT/OpenVINO）/ 表7 汇总 |
-| 实验3：关联分析（数据→量化误差 / 模型→剪枝） | 报告五.8 两段 + `models/exp3/README.md` |
+| 实验3：关联分析（数据→量化误差 / 模型→剪枝） | 报告五.8 两段；v1 全档案索引见 git 历史 |
 
 ## 下一步（实验 4-5 衔接）
 
