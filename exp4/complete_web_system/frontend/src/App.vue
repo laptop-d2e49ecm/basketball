@@ -2,11 +2,8 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  FileTextOutlined,
-  LinkOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  PictureOutlined,
   BarChartOutlined,
   HistoryOutlined,
   RobotOutlined,
@@ -20,9 +17,6 @@ const navigation = [
   { key: '/agent', label: 'AI 解说', icon: RobotOutlined },
   { key: '/video-v3', label: '视频分析工作台', icon: BarChartOutlined },
   { key: '/video-v3?view=recent', label: '最近任务', icon: HistoryOutlined },
-  { key: '/detect', label: '球员图像检测', icon: PictureOutlined },
-  { key: '/text', label: '解说文本分类', icon: FileTextOutlined },
-  { key: '/match', label: '图文匹配', icon: LinkOutlined },
 ]
 
 const currentTitle = computed(() => String(route.meta.title || '篮球 AI 赛事解说'))

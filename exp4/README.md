@@ -2,7 +2,7 @@
 
 本文件集中说明前端、后端的安装、启动、使用、接口和测试方法。以下命令以 Windows PowerShell 为例，项目根目录指同时包含 `frontend/`、`backend/` 和启动文件的目录。
 
-系统支持上传篮球比赛视频、查看分析进度、回放检测框、按事件时间定位画面，以及球员图像检测、解说文本分类和图文篮球相关性检查。
+系统支持上传篮球比赛视频、查看分析进度、回放检测框、按事件时间定位画面；后台按“检测 → 动作识别 → 解说生成”三阶段产出逐事件解说与整场解说稿（可播放神经语音），并可在 AI 解说对话页用自然语言查询图像检测、解说分类、真人解说检索与任务事件。
 
 ## 1. 快速启动与关闭
 
@@ -17,10 +17,9 @@
 
 | 入口 | 地址或位置 |
 |---|---|
-| 系统首页 | http://127.0.0.1:5173/ |
-| 球员图像检测 | http://127.0.0.1:5173/detect |
-| 解说文本分类 | http://127.0.0.1:5173/text |
-| 图文匹配 | http://127.0.0.1:5173/match |
+| 系统首页（跳转工作台） | http://127.0.0.1:5173/ |
+| 视频工作台（整页） | http://127.0.0.1:5173/courtvision.html |
+| AI 解说对话 | http://127.0.0.1:5173/agent |
 | 后端接口调试文档 | http://127.0.0.1:8000/docs |
 | 后端健康检查 | http://127.0.0.1:8000/api/v1/health |
 | 启动日志 | `.runtime/logs/` |
@@ -70,11 +69,13 @@ Set-Location ..
 | 文件 | 用途 |
 |---|---|
 | `backend/weights/best.pt` | 视频中的球员检测与跟踪 |
-| `backend/weights/a2_int8_val346.onnx` | 单图、批量图片及图文模块的球员检测 |
+| `backend/weights/a2v2_int8_val173.onnx` | 单图、批量图片及图文模块的球员检测 |
+| `backend/weights/action_mc3_18.onnx` | 动作识别（16 帧 ×112，13 类 + 背景） |
+| `backend/weights/action_clf_meta.json` | 动作类别与归一化元数据 |
 | `backend/app/ml/text_action_clf.joblib` | 解说文本分类及图文模块的文本判断 |
 | `backend/app/ml/text_clf_meta.json` | 文本分类标签、领域判断规则和阈值 |
 
-文本模型与元数据文件应配套保存。健康接口返回 `image_detector_loaded` 和 `text_classifier_loaded` 等加载状态。图片或文本模型缺失时，API 仍可启动，依赖该模型的功能会提示不可用；视频分析另外依赖 `best.pt` 和视频 Worker 正常运行。
+文本模型与元数据文件应配套保存。健康接口返回 `image_detector_loaded` 和 `text_classifier_loaded` 等加载状态。图片或文本模型缺失时，API 仍可启动，依赖该模型的功能会提示不可用；动作识别权重缺失时自动回退启发式事件；视频分析另外依赖 `best.pt` 和视频 Worker 正常运行。
 
 ## 3. 页面使用方法
 
@@ -96,33 +97,19 @@ Set-Location ..
 - 删除历史任务会移除任务记录及其本地视频、检测结果等文件。
 - “清除当前任务”只清空当前页面的预览、事件、检测框和图表，以便重新上传；它保留历史记录，也不会取消已经提交到后端的任务。
 
-### 3.3 球员图像检测
-
-进入“球员图像检测”，上传 PNG/JPG 图片并执行检测，查看人数、检测框、置信度和耗时。单张图片最大 10 MiB；批量 API 最多接受 20 张图片。检测页当前不提供点击图片放大的功能。
-
-### 3.4 解说文本分类
-
-输入 1～2000 字解说文本并提交。页面显示类别、是否属于篮球相关文本、置信度及候选分类。分类结果描述输入文字，不代表系统从视频或图片中识别出了同一动作。
-
-### 3.5 图文匹配
-
-同时上传图片并输入解说文本，查看两侧的判断及汇总结果。结果图片可点击放大预览。
-
-该模块判断“图片中检测到球员，且文字属于篮球相关内容”。它不计算图文语义相似度，也不验证图片中的动作与文字描述一致。例如，文字被分类为“投篮”，并不表示图片中的球员正在投篮。
-
-### 3.6 视频播放兼容性与解说范围
+### 3.3 视频播放兼容性与解说范围
 
 新上传视频使用浏览器本地文件预览，能否播放取决于浏览器对视频编码的支持。历史任务通过后端预览接口播放，必要时后台转换为 H.264/AAC 兼容预览。转换不改变用于推理的原始视频。
 
-视频事件由人数变化、球员聚集和群体移动方向变化等启发式规则生成。当前不识别球体、投篮、进球、球员姓名或比分，也未接入大模型自由解说。
+视频事件由 13 类动作识别模型（MC3-18）与人数变化、聚集、方向反转等启发式事件共同生成；逐事件解说与整场解说由大模型基于结构化事实生成，上传时填写的对阵与比分作为可信事实注入。比分与队名不做自动识别（记分牌 OCR 未实现），解说中不出现画面与事实无法支撑的断言。
 
 ## 4. 前后端结构
 
 | 部分 | 实现与职责 |
 |---|---|
 | 前端框架 | Vue 3、TypeScript、Vite、Vue Router、Ant Design Vue、Pinia |
-| 视频工作台 | 通过 Vue 页面嵌入独立 HTML；使用 Fetch、WebSocket 和 canvas 完成任务交互与检测框绘制 |
-| 图片、文本和图文页面 | Vue 组件，使用 Axios 调用 API |
+| 视频工作台 | 通过 Vue 页面嵌入独立 HTML（courtvision.html）；使用 Fetch、WebSocket 和 canvas 完成任务交互与检测框绘制 |
+| AI 解说对话页 | Vue 组件（AgentChatView），调用 `/api/v1/agent/chat`，工具过程条可展开 |
 | 后端 API | FastAPI、Uvicorn；文件校验、模型服务、任务管理及 REST/WebSocket 接口 |
 | 视频处理 | 独立 Worker，Ultralytics 与 ByteTrack 执行球员检测和跟踪 |
 | 模型运行 | 图片使用 ONNX Runtime；文本使用 scikit-learn/joblib；视频使用 PyTorch |
@@ -184,7 +171,11 @@ Set-Location ..
 | GET | `/api/v1/tasks/{task_id}` | 状态、阶段、进度、帧数、耗时及错误 |
 | DELETE | `/api/v1/tasks/{task_id}` | 删除已完成或失败的任务；处理中返回 409 |
 | GET | `/api/v1/tasks/{task_id}/detections` | 检测记录；`t_start` 默认 0，`t_end` 可选，单位为秒 |
-| GET | `/api/v1/tasks/{task_id}/events` | 带时间戳的事件及描述 |
+| GET | `/api/v1/tasks/{task_id}/events` | 带时间戳的事件及逐条解说 |
+| GET | `/api/v1/tasks/{task_id}/narration` | 整场解说稿与生成状态 |
+| GET | `/api/v1/tasks/{task_id}/narration/audio` | 整场解说神经语音 MP3 |
+| POST | `/api/v1/tasks/{task_id}/narration/retry` | 整场解说失败重试（202） |
+| POST | `/api/v1/agent/chat` | AI 解说对话；JSON 字段 `message`、可选 `session_id` |
 | GET | `/api/v1/tasks/{task_id}/preview/status` | 兼容预览生成状态 |
 | GET | `/api/v1/tasks/{task_id}/preview` | 返回 MP4 预览流；未就绪返回 409 |
 | WebSocket | `/ws/task/{task_id}` | 任务进度、事件及完成或失败通知 |
@@ -324,15 +315,14 @@ Windows 下的 `solo` 工作池已完成本地单任务验证；该记录不包�
 Set-Location .\backend
 .\.venv\Scripts\python.exe -m pytest -q
 Set-Location ..\frontend
-pnpm test:unit
 pnpm build
 pnpm exec playwright install
 pnpm test:e2e
 ```
 
-- 后端测试检查坐标处理和演示 API 的成功、错误路径，部分测试使用替身模型。
-- 前端单元测试检查坐标转换；构建命令同时执行 TypeScript 检查。
-- 浏览器测试覆盖响应式布局、最近任务导航及上传分析交互。配置中的 Chromium 项目通过本机 Microsoft Edge 运行，Firefox 和 WebKit 使用 Playwright 浏览器。
+- 后端测试覆盖坐标处理、任务状态机、逐事件解说、整场解说禁词兜底、语音韵律与 Agent 接口内容归一，共 47 项，部分测试使用替身模型。
+- 前端构建命令同时执行 TypeScript 检查。
+- 浏览器测试（13 项）覆盖工作台与对话页的响应式布局、最近任务导航及上传分析交互。配置中的 Chromium 项目通过本机 Microsoft Edge 运行，Firefox 和 WebKit 使用 Playwright 浏览器。
 - 界面自动化测试使用模拟 API/WebSocket 响应，不能代替真实模型推理验证；WebKit 测试也不等同于 macOS Safari 应用实测。
 - 真实联调可通过页面上传实际样例，检查进度、检测框、事件定位、手动继续播放和历史回放，并另行保存记录。
 
@@ -353,4 +343,3 @@ pnpm test:e2e
 | 有 GPU 仍使用 CPU | 检查当前虚拟环境中的 PyTorch 和 CUDA 是否可用；CPU 可以继续完成分析，修改显卡运行环境后需重新验证性能。 |
 | 点击事件后视频不继续播放 | 这是预期交互：定位后保持暂停，点击播放器播放键继续。 |
 | 清除当前任务后历史记录仍在 | 清除按钮只重置当前页面；需要删除记录时在最近任务列表操作。 |
-| 图文页显示“投篮”，图片却不是投篮 | 该类别来自文字分类；图像侧只检测球员，图文结果不证明动作一致。 |

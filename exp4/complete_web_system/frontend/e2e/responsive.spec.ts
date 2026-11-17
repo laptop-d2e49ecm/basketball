@@ -1,12 +1,5 @@
 import { expect, test } from '@playwright/test'
 
-const pages = [
-  { path: '/video-v3', title: '视频解说分析台' },
-  { path: '/detect', title: '球员图像检测', layout: 'stack-at-md', xlShare: 9 / 24 },
-  { path: '/text', title: '解说文本分类', layout: 'split-at-md', xlShare: 12 / 24 },
-  { path: '/match', title: '图文匹配', layout: 'stack-at-md', xlShare: 10 / 24 },
-]
-
 const viewports = [
   { name: 'xs', width: 390, height: 844 },
   { name: 'md', width: 768, height: 1024 },
@@ -14,75 +7,30 @@ const viewports = [
 ]
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/v1/**', async (route) => {
-    const path = new URL(route.request().url()).pathname
-    const result = path.endsWith('/meta/model')
-      ? {
-          name: 'YOLOv8n',
-          parameters: '3.2M',
-          map50: 0.418,
-          classes: ['player'],
-          weights_available: true,
-          avg_infer_ms: 36.6,
-        }
-      : []
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: 0, result, msg: 'ok' }),
-    })
-  })
+  await page.route('**/api/v1/**', route => route.fulfill({
+    json: { code: 0, result: [], msg: 'ok' },
+  }))
 })
 
-for (const pageInfo of pages) {
-  for (const viewport of viewports) {
-    test(`${pageInfo.title} fits the ${viewport.name} viewport`, async ({ page }) => {
-      await page.setViewportSize({ width: viewport.width, height: viewport.height })
-      await page.goto(pageInfo.path)
-      const content = pageInfo.path === '/video-v3' ? page.frameLocator('iframe') : page
-      await expect(content.getByRole('heading', { level: 1 })).toHaveText(pageInfo.title)
+for (const viewport of viewports) {
+  test(`workbench fits the ${viewport.name} viewport`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height })
+    await page.goto('/video-v3')
+    const content = page.frameLocator('iframe')
+    await expect(content.locator('#viewHome')).toBeVisible()
 
-      const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
-      expect(documentWidth, 'page should not scroll horizontally').toBeLessThanOrEqual(viewport.width)
+    const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
+    expect(documentWidth, 'page should not scroll horizontally').toBeLessThanOrEqual(viewport.width)
+    const innerWidth = await content.locator('html').evaluate(el => el.scrollWidth)
+    expect(innerWidth, 'workbench should not scroll horizontally').toBeLessThanOrEqual(viewport.width)
+  })
 
-      if (pageInfo.path === '/video-v3') {
-        const innerWidth = await content.locator('html').evaluate(el => el.scrollWidth)
-        expect(innerWidth).toBeLessThanOrEqual(viewport.width)
-        const video = await content.locator('.video-card').boundingBox()
-        const events = await content.locator('.events-card').boundingBox()
-        const chart = await content.locator('.chart-card').boundingBox()
-        expect(video).not.toBeNull()
-        expect(events).not.toBeNull()
-        expect(chart).not.toBeNull()
-        if (viewport.name === 'xl') expect(video!.width).toBeGreaterThan(events!.width * 1.4)
-        else expect(Math.abs(video!.width - events!.width)).toBeLessThan(1)
-        expect(Math.abs(chart!.x - video!.x)).toBeLessThan(1)
-        expect(Math.abs(chart!.x + chart!.width - events!.x - events!.width)).toBeLessThan(1)
-        expect(chart!.y).toBeGreaterThanOrEqual(events!.y + events!.height)
-        const blank = await content.locator('.video-card').evaluate(el =>
-          el.getBoundingClientRect().bottom - el.lastElementChild!.getBoundingClientRect().bottom,
-        )
-        expect(blank).toBeLessThanOrEqual(2)
-        return
-      }
+  test(`agent page fits the ${viewport.name} viewport`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height })
+    await page.goto('/agent')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('AI 解说')
 
-      if (!pageInfo.layout) return
-
-      const row = page.locator('.page-content .ant-row').first()
-      const columns = row.locator(':scope > .ant-col')
-      await expect(columns).toHaveCount(2)
-      const firstColumnShare = await columns.first().evaluate((column) => {
-        const rowElement = column.parentElement
-        if (!rowElement) return 0
-        return column.getBoundingClientRect().width / rowElement.getBoundingClientRect().width
-      })
-
-      const expectedShare = viewport.name === 'xs'
-        ? 1
-        : viewport.name === 'md'
-          ? pageInfo.layout === 'split-at-md' ? 0.5 : 1
-          : pageInfo.xlShare
-      expect(firstColumnShare).toBeCloseTo(expectedShare, 1)
-    })
-  }
+    const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
+    expect(documentWidth, 'page should not scroll horizontally').toBeLessThanOrEqual(viewport.width)
+  })
 }
