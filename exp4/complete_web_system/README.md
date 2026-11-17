@@ -39,7 +39,7 @@ pnpm install
 ## 代码和配套文件
 
 - `frontend/src/`：Vue 路由、公共导航及图片/文本/图文页面。
-- `frontend/src/views/VideoV3View.vue`：工作台入口，加载 `frontend/public/前端第三版.html`。**public 里的文件是实际运行页面**。
+- `frontend/src/views/VideoV3View.vue`：工作台入口，加载 `frontend/public/courtvision.html`。**public 里的文件是实际运行页面**。
 - `backend/`：FastAPI、任务存储、视频 Worker、模型及演示 API；后端支持任务名称和删除，更新时请配套使用。
 - `samples/`：图片、文本和视频样例；`demo_video.mp4` 为 36.04 秒基线，`demo_video_short.mp4` 用于快速检查。
 - `backend/postman_collection.json`：接口请求集合。

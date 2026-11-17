@@ -57,7 +57,7 @@ if errorlevel 1 (%SystemRoot%\System32\timeout.exe /t 1 /nobreak >nul & goto wai
 
 :open
 echo Opening workbench page in browser...
-start "" "http://127.0.0.1:5173/%%E5%%89%%8D%%E7%%AB%%AF%%E7%%AC%%AC%%E4%%B8%%89%%E7%%89%%88.html"
+start "" "http://127.0.0.1:5173/courtvision.html"
 echo.
 echo All set. You can close this window.
 %SystemRoot%\System32\timeout.exe /t 6 >nul

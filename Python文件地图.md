@@ -7,7 +7,7 @@
 
 ## A. exp4/complete_web_system/backend —— 上线运行的 Web 系统（实验4+5 部署形态，58 个文件）
 
-整个系统的心脏：FastAPI 后端 + 本地 Worker，前端页面（前端第三版.html）的所有功能都由这里支撑。
+整个系统的心脏：FastAPI 后端 + 本地 Worker，前端页面（courtvision.html，原“前端第三版.html”）的所有功能都由这里支撑。
 
 ### app/main.py 与核心配置
 | 文件 | 用途 |

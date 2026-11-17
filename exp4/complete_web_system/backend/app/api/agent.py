@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from app.core.errors import ModelError, NotFoundError
 from app.db import agent_sessions
 from app.schemas.envelope import ApiEnvelope
+from worker.commentary.llm import content_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["agent"])
@@ -52,11 +53,15 @@ def _get_agent(request: Request):
 
 
 def _history_to_messages(history: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """存储格式（user/agent）转模型输入格式（user/assistant），工具过程不回传模型。"""
+    """存储格式（user/agent）转模型输入格式（user/assistant），工具过程不回传模型。
+
+    content 经 content_text 归一：新中转可能把回复存成块列表，历史里残留的
+    列表内容在这里提取纯文本，避免把块结构 repr 回传给模型。
+    """
     messages = []
     for item in history:
         role = "user" if item.get("role") == "user" else "assistant"
-        content = str(item.get("content", ""))
+        content = content_text(item.get("content", ""))
         if content:
             messages.append({"role": role, "content": content})
     return messages
@@ -129,7 +134,7 @@ def agent_chat(payload: AgentChatRequest, request: Request) -> ApiEnvelope[dict[
             ) from exc
         raise ModelError("AI 服务暂时不可用，请稍后重试") from exc
 
-    final = str(result["messages"][-1].content)
+    final = content_text(result["messages"][-1].content).strip() or "（AI 未返回内容，请重试）"
     trace = _trace_from_messages(result["messages"])
     elapsed_ms = round((time.perf_counter() - started) * 1000)
 

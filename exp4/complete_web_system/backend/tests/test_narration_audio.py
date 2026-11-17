@@ -12,13 +12,12 @@ from app.api import tasks
 
 
 def _fake_edge_tts(monkeypatch, payload: bytes = b"ID3-audio"):
-    """注入假 edge_tts 模块，记录合成文本，避免测试联网。"""
-    seen: dict[str, str] = {}
+    """注入假 edge_tts 模块，记录每次合成的文本与韵律参数，避免测试联网。"""
+    calls: list[dict[str, str]] = []
 
     class FakeCommunicate:
-        def __init__(self, text: str, voice: str, rate: str):
-            seen["text"] = text
-            seen["voice"] = voice
+        def __init__(self, text: str, voice: str, rate: str, pitch: str):
+            calls.append({"text": text, "voice": voice, "rate": rate, "pitch": pitch})
 
         async def stream(self):
             yield {"type": "audio", "data": payload}
@@ -26,7 +25,7 @@ def _fake_edge_tts(monkeypatch, payload: bytes = b"ID3-audio"):
     module = types.ModuleType("edge_tts")
     module.Communicate = FakeCommunicate
     monkeypatch.setitem(sys.modules, "edge_tts", module)
-    return seen
+    return calls
 
 
 def _write_narration(task_dir: Path, status: str = "ready") -> Path:
@@ -40,12 +39,13 @@ def _write_narration(task_dir: Path, status: str = "ready") -> Path:
 
 def test_synthesize_uses_sections_and_reuses_cache(tmp_path: Path, monkeypatch):
     narration = _write_narration(tmp_path)
-    seen = _fake_edge_tts(monkeypatch)
+    calls = _fake_edge_tts(monkeypatch)
 
     audio = tts.synthesize_narration(narration)
     assert audio.read_bytes() == b"ID3-audio"
-    assert "疑似传球" in seen["text"] and "三分出手" in seen["text"]
-    assert seen["voice"] == tts.DEFAULT_VOICE
+    assert len(calls) == 1  # 无感叹号 → 全场一个平铺块
+    assert "疑似传球" in calls[0]["text"] and "三分出手" in calls[0]["text"]
+    assert calls[0]["voice"] == tts.DEFAULT_VOICE
 
     audio.write_bytes(b"ID3-audio-v2")  # 破坏缓存内容不应触发重合成（mtime 未变）
     audio.touch()  # 显式让 mp3 比 narration 新
@@ -64,6 +64,33 @@ def test_synthesize_regenerates_when_narration_updated(tmp_path: Path, monkeypat
     os.utime(narration, (future, future))
     _fake_edge_tts(monkeypatch, payload=b"new")
     assert tts.synthesize_narration(narration).read_bytes() == b"new"
+
+
+def test_synthesize_applies_climax_prosody(tmp_path: Path, monkeypatch):
+    """「！」高潮句加速抬调，平铺句用基础韵律；相邻同风格句子合并成一块。"""
+    narration = tmp_path / "narration.json"
+    narration.write_text(
+        json.dumps(
+            {
+                "status": "ready",
+                "text": "",
+                "sections": [
+                    {"text": "双方拉开阵型。"},
+                    {"text": "外线果断出手！球进了！"},
+                    {"text": "现场气氛沸腾。"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls = _fake_edge_tts(monkeypatch, payload=b"chunk")
+
+    audio = tts.synthesize_narration(narration)
+    assert audio.read_bytes() == b"chunkchunkchunk"
+    assert [c["rate"] for c in calls] == [tts.DEFAULT_RATE, tts.DEFAULT_CLIMAX_RATE, tts.DEFAULT_RATE]
+    assert calls[0]["pitch"] == "+0Hz"
+    assert calls[1]["pitch"] == tts.DEFAULT_CLIMAX_PITCH
+    assert calls[1]["text"] == "外线果断出手！球进了！"
 
 
 def test_audio_endpoint_serves_file_and_maps_errors(tmp_path: Path, monkeypatch):

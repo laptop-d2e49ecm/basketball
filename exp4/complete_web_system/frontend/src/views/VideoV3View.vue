@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 const pageSource = computed(() =>
-  route.query.view === 'recent' ? '/前端第三版.html?view=recent' : '/前端第三版.html',
+  route.query.view === 'recent' ? '/courtvision.html?view=recent' : '/courtvision.html',
 )
 </script>
 

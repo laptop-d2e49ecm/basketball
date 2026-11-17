@@ -370,7 +370,7 @@
         <div class="card-head"><div class="card-title">✦ 整场 AI 解说</div><span class="head-note" id="narrationState">等待视频分析</span></div>
         <div class="narration-body">
           <div class="narration-text" id="narrationText">上传视频后，这里会展示依据该任务事件生成的连续解说。</div>
-          <div class="narration-tools"><button id="speakNarration" type="button" hidden>🔊 朗读解说</button><button id="retryNarration" type="button" hidden>重新生成解说</button><input id="taskQuestion" maxlength="400" placeholder="针对当前比赛提问，例如：有哪些关键动作？" aria-label="向 AI 提问"><button id="askTask" type="button">提问</button></div>
+          <div class="narration-tools"><button id="speakNarration" type="button" hidden>🔊 播放解说</button><button id="retryNarration" type="button" hidden>重新生成解说</button><input id="taskQuestion" maxlength="400" placeholder="针对当前比赛提问，例如：有哪些关键动作？" aria-label="向 AI 提问"><button id="askTask" type="button">提问</button></div>
           <div class="narration-status" id="questionStatus">选择视频任务后可提问。</div>
           <div class="narration-answer" id="taskAnswer" hidden></div>
           <audio id="speechAudio" preload="none"></audio>
@@ -524,41 +524,41 @@
     let taskSessionId='';
     async function loadNarration(){if(!activeId)return;const id=activeId,token=generation;try{const result=await unwrap(await fetch(`${api}/tasks/${encodeURIComponent(id)}/narration`));if(token!==generation||id!==activeId)return;narrationReady=result;$('#narrationState').textContent=({ready:'已生成',running:'正在生成',pending:'等待分析',failed:'生成失败',empty:'没有可解说的事件',not_started:'尚未生成'})[result.status]||result.status;$('#narrationText').textContent=result.text||result.error||'本任务暂无整场解说。';$('#retryNarration').hidden=!['failed','not_started'].includes(result.status);$('#speakNarration').hidden=result.status!=='ready'||!(result.text||'').trim();if(result.status==='running')setTimeout(()=>{if(token===generation&&id===activeId)loadNarration()},2500)}catch(e){if(token===generation){$('#narrationState').textContent='读取失败';$('#narrationText').textContent=e.message}}}
     $('#retryNarration').onclick=async()=>{if(!activeId)return;const id=activeId;$('#retryNarration').disabled=true;try{await unwrap(await fetch(`${api}/tasks/${encodeURIComponent(id)}/narration/retry`,{method:'POST'}));if(id===activeId)await loadNarration()}catch(e){$('#narrationText').textContent=e.message}finally{$('#retryNarration').disabled=false}};
-    /* ---------- 语音朗读整场解说：优先后端神经网络语音，失败自动回退浏览器 TTS ---------- */
+    /* ---------- 语音播放整场解说：优先后端神经网络语音，失败自动回退浏览器 TTS ---------- */
     let narrationReady=null,speakingIdx=-1,speechQueue=[],speechMode='',speechPending=false;
     const speakBtn=$('#speakNarration'),speechAudio=$('#speechAudio');
-    function speakStop(){speechPending=false;if(speechMode==='neural'){speechAudio.pause();speechAudio.removeAttribute('src');speechAudio.load()}else if('speechSynthesis' in window)speechSynthesis.cancel();speechMode='';speakingIdx=-1;speechQueue=[];speakBtn.textContent='🔊 朗读解说';speakBtn.classList.remove('speaking')}
-    function speakFallback(note){if(!speechPending)return;speechPending=false;speakBtn.textContent='🔊 朗读解说';if(note)$('#questionStatus').textContent=note;startBrowserSpeak()}
-    speechAudio.onplaying=()=>{speechPending=false;speechMode='neural';speakingIdx=0;speakBtn.textContent='⏹ 停止朗读';speakBtn.classList.add('speaking');$('#questionStatus').textContent='正在播放 AI 语音解说'};
+    function speakStop(){speechPending=false;if(speechMode==='neural'){speechAudio.pause();speechAudio.removeAttribute('src');speechAudio.load()}else if('speechSynthesis' in window)speechSynthesis.cancel();speechMode='';speakingIdx=-1;speechQueue=[];speakBtn.textContent='🔊 播放解说';speakBtn.classList.remove('speaking')}
+    function speakFallback(note){if(!speechPending)return;speechPending=false;speakBtn.textContent='🔊 播放解说';if(note)$('#questionStatus').textContent=note;startBrowserSpeak()}
+    speechAudio.onplaying=()=>{speechPending=false;speechMode='neural';speakingIdx=0;speakBtn.textContent='⏹ 停止播放';speakBtn.classList.add('speaking');$('#questionStatus').textContent='正在播放 AI 语音解说'};
     speechAudio.ontimeupdate=()=>{if(speechMode==='neural'&&Number.isFinite(speechAudio.duration))$('#questionStatus').textContent=`正在播放 AI 语音解说 · ${fmt(speechAudio.currentTime)}/${fmt(speechAudio.duration)}`};
     speechAudio.onended=()=>{speakStop();$('#questionStatus').textContent='语音解说播放完毕。'};
-    speechAudio.onerror=()=>speakFallback('神经网络语音不可用，已切换浏览器朗读。');
+    speechAudio.onerror=()=>speakFallback('神经网络语音不可用，已切换浏览器语音。');
     function browserSpeakNext(){
       if(speechMode!=='browser'||speakingIdx<0)return;
-      if(speakingIdx>=speechQueue.length){speakStop();$('#questionStatus').textContent='整场解说已朗读完毕。';return}
+      if(speakingIdx>=speechQueue.length){speakStop();$('#questionStatus').textContent='整场解说已播放完毕。';return}
       const utterance=new SpeechSynthesisUtterance(speechQueue[speakingIdx]);
       utterance.lang='zh-CN';utterance.rate=1.04;
       const voices=speechSynthesis.getVoices();
       utterance.voice=voices.find(v=>/zh[-_]CN/i.test(v.lang)&&/xiaoxiao|huihui|yaoyao|kangkang/i.test(v.name))||voices.find(v=>/^zh/i.test(v.lang))||null;
       utterance.onend=()=>{if(speechMode==='browser'){speakingIdx+=1;browserSpeakNext()}};
-      utterance.onerror=()=>{if(speechMode==='browser'){speakStop();$('#questionStatus').textContent='语音朗读失败，可再点一次重试。'}};
-      $('#questionStatus').textContent=`正在朗读整场解说 · 第 ${speakingIdx+1}/${speechQueue.length} 段`;
+      utterance.onerror=()=>{if(speechMode==='browser'){speakStop();$('#questionStatus').textContent='语音播放失败，可再点一次重试。'}};
+      $('#questionStatus').textContent=`正在播放整场解说 · 第 ${speakingIdx+1}/${speechQueue.length} 段`;
       speechSynthesis.speak(utterance);
     }
     function startBrowserSpeak(){
-      if(!('speechSynthesis' in window)){$('#questionStatus').textContent='当前浏览器不支持语音朗读。';return}
+      if(!('speechSynthesis' in window)){$('#questionStatus').textContent='当前浏览器不支持语音播放。';return}
       const sections=narrationReady&&Array.isArray(narrationReady.sections)&&narrationReady.sections.length?narrationReady.sections.map(s=>s.text):($('#narrationText').textContent||'').split(/\n{2,}/);
       speechQueue=sections.map(s=>(s||'').trim()).filter(Boolean);
-      if(!speechQueue.length){$('#questionStatus').textContent='暂无可朗读的解说。';return}
-      speechMode='browser';speakingIdx=0;speakBtn.textContent='⏹ 停止朗读';speakBtn.classList.add('speaking');browserSpeakNext();
+      if(!speechQueue.length){$('#questionStatus').textContent='暂无可播放的解说。';return}
+      speechMode='browser';speakingIdx=0;speakBtn.textContent='⏹ 停止播放';speakBtn.classList.add('speaking');browserSpeakNext();
     }
     speakBtn.onclick=()=>{
       if(speechMode||speechPending){speakStop();return}
-      if(!activeId||!narrationReady||narrationReady.status!=='ready'){$('#questionStatus').textContent='解说稿就绪后才能朗读。';return}
+      if(!activeId||!narrationReady||narrationReady.status!=='ready'){$('#questionStatus').textContent='解说稿就绪后才能播放。';return}
       speechPending=true;speakBtn.textContent='… 语音合成中';speakBtn.classList.add('speaking');$('#questionStatus').textContent='正在合成神经网络语音，首次约需几秒…';
       speechAudio.src=`${api}/tasks/${encodeURIComponent(activeId)}/narration/audio`;
       const played=speechAudio.play();
-      if(played&&played.catch)played.catch(()=>speakFallback('神经网络语音不可用，已切换浏览器朗读。'));
+      if(played&&played.catch)played.catch(()=>speakFallback('神经网络语音不可用，已切换浏览器语音。'));
     };
     if('speechSynthesis' in window)speechSynthesis.getVoices();
     $('#askTask').onclick=async()=>{const id=activeId,question=$('#taskQuestion').value.trim();if(!id){$('#questionStatus').textContent='请先选择视频任务。';return}if(!question)return;$('#askTask').disabled=true;$('#questionStatus').textContent='AI 正在结合当前任务事件回答…';try{const message=`视频任务编号 ${id}。请先查询该任务事件；若问题涉及整场，请分页查询所有事件，再回答：${question}`;const payload={session_id:taskSessionId||null,message:message.slice(0,500)};const answer=await unwrap(await fetch(`${api}/agent/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));if(id!==activeId)return;taskSessionId=answer.session_id;$('#taskAnswer').hidden=false;$('#taskAnswer').textContent=answer.agent;$('#questionStatus').textContent=`已结合当前任务回答 · ${answer.elapsed_ms??'—'} ms`}catch(e){if(id===activeId)$('#questionStatus').textContent=e.message}finally{$('#askTask').disabled=false}};

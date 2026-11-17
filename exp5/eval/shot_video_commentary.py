@@ -16,7 +16,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 
 def shoot_video(page) -> None:
-    page.goto(f"{BASE}/前端第三版.html", wait_until="networkidle", timeout=60000)
+    page.goto(f"{BASE}/courtvision.html", wait_until="networkidle", timeout=60000)
     page.click("#recentNav")
     page.wait_for_selector(".task-item", timeout=30000)
     row = page.locator(".task-item", has_text=TASK).first
