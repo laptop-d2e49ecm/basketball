@@ -415,6 +415,11 @@
       <button class="del" id="fileRemove" type="button" aria-label="移除已选文件">✕</button>
     </div>
     <input class="name-input" id="videoName" maxlength="120" placeholder="给视频起个名字（可选）" aria-label="视频任务名称" />
+    <div style="display:flex;gap:8px;margin-top:2px" aria-label="对阵与比分（可选，会注入解说）">
+      <input class="name-input" id="team1Input" maxlength="24" style="flex:1;min-width:0" placeholder="主队（可选）" aria-label="主队名称" />
+      <input class="name-input" id="team2Input" maxlength="24" style="flex:1;min-width:0" placeholder="客队（可选）" aria-label="客队名称" />
+      <input class="name-input" id="scoreInput" maxlength="12" style="flex:1;min-width:0" placeholder="比分 如 102:98" aria-label="比分" />
+    </div>
   </div>
   <div class="modal-foot">
     <button class="btn btn-line" id="uploadCancel" type="button">取消</button>
@@ -572,15 +577,16 @@
     /* ---------- 选片确认弹窗 ---------- */
     let pendingFile=null,pendingUrl='';
     function describeFile(f){pendingFile=f;$('#upError').hidden=true;const okMp4=f.name.toLowerCase().endsWith('.mp4')||f.type==='video/mp4';$('#fileRow').hidden=false;$('#dropIc').textContent='✓';$('#dropTitle').textContent='已选择 1 个视频';$('#upFileName').textContent=f.name;$('#upFileMeta').textContent=`${(f.size/1048576).toFixed(1)} MB · MP4`;if(pendingUrl)URL.revokeObjectURL(pendingUrl);pendingUrl=URL.createObjectURL(f);const mv=$('#metaVideo');mv.onloadedmetadata=()=>{$('#upFileMeta').textContent=`${(f.size/1048576).toFixed(1)} MB · ${fmt(mv.duration)} · MP4`};mv.onerror=()=>{};mv.src=pendingUrl;if(!okMp4){$('#upError').textContent='仅支持 MP4 格式的视频文件。';$('#upError').hidden=false}$('#uploadConfirm').disabled=!okMp4;if(!$('#uploadDialog').open)$('#uploadDialog').showModal()}
-    function resetUploadDialog(){pendingFile=null;$('#fileRow').hidden=true;$('#dropIc').textContent='＋';$('#dropTitle').textContent='点击选择视频文件';$('#upError').hidden=true;$('#uploadConfirm').disabled=true;if(pendingUrl){URL.revokeObjectURL(pendingUrl);pendingUrl=''}}
+    function resetUploadDialog(){pendingFile=null;$('#fileRow').hidden=true;$('#dropIc').textContent='＋';$('#dropTitle').textContent='点击选择视频文件';$('#upError').hidden=true;$('#uploadConfirm').disabled=true;$('#videoName').value='';$('#team1Input').value='';$('#team2Input').value='';$('#scoreInput').value='';if(pendingUrl){URL.revokeObjectURL(pendingUrl);pendingUrl=''}}
     input.onchange=async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;describeFile(f)};
     const pickFile=()=>input.click();
     $('#dropZone').onclick=()=>pickFile();$('#dropZone').onkeydown=e=>{if(e.key==='Enter'||e.key===' ')pickFile()};
     $('#uploadClose').onclick=$('#uploadCancel').onclick=()=>{resetUploadDialog();$('#uploadDialog').close()};
     $('#fileRemove').onclick=()=>{resetUploadDialog()};
-    $('#uploadConfirm').onclick=()=>{if(!pendingFile)return;const f=pendingFile,name=$('#videoName').value.trim();resetUploadDialog();$('#uploadDialog').close();doUpload(f,name)};
+    function readMatchInputs(){const t1=$('#team1Input').value.trim(),t2=$('#team2Input').value.trim(),raw=$('#scoreInput').value.trim();let s1='',s2='';const m=raw.match(/^(\d{1,3})\s*[:：比]\s*(\d{1,3})$/);if(m){s1=m[1];s2=m[2]}return{team1:t1,team2:t2,score1:s1,score2:s2}}
+    $('#uploadConfirm').onclick=()=>{if(!pendingFile)return;const f=pendingFile,name=$('#videoName').value.trim(),match=readMatchInputs();resetUploadDialog();$('#uploadDialog').close();doUpload(f,name,match)};
     /* ---------- 上传与分析 ---------- */
-    async function doUpload(f,name){clearCurrentTask();showView('result');const token=generation;try{localVideoUrl=URL.createObjectURL(f);video.onloadedmetadata=()=>{if(token!==generation)return;onVideoReady()};video.src=localVideoUrl;video.hidden=false;$('#videoOverlay').classList.add('show');$('#sceneHint').style.display='none';$('#cbarName').textContent=name||f.name;$('#videoStatus').textContent='视频预览';beginAnalysis('正在上传视频…');const form=new FormData();form.append('file',f);form.append('video_name',name);const created=await unwrap(await fetch(`${api}/tasks`,{method:'POST',body:form}));if(token!==generation)return;updateAnalysis(0,'视频上传完成，等待分析…');watch(created.task_id);$('#videoStatus').textContent='任务处理中';refreshTasksQuiet()}catch(err){if(token===generation){analysisPending=false;clearInterval(statTimer);$('#videoStatus').textContent='上传失败';analysisError('上传失败，请重试',err.message)}}}
+    async function doUpload(f,name,match){clearCurrentTask();showView('result');const token=generation;try{localVideoUrl=URL.createObjectURL(f);video.onloadedmetadata=()=>{if(token!==generation)return;onVideoReady()};video.src=localVideoUrl;video.hidden=false;$('#videoOverlay').classList.add('show');$('#sceneHint').style.display='none';$('#cbarName').textContent=name||f.name;$('#videoStatus').textContent='视频预览';beginAnalysis('正在上传视频…');const form=new FormData();form.append('file',f);form.append('video_name',name);if(match&&match.team1)form.append('team1',match.team1);if(match&&match.team2)form.append('team2',match.team2);if(match&&match.score1)form.append('score1',match.score1);if(match&&match.score2)form.append('score2',match.score2);const created=await unwrap(await fetch(`${api}/tasks`,{method:'POST',body:form}));if(token!==generation)return;updateAnalysis(0,'视频上传完成，等待分析…');watch(created.task_id);$('#videoStatus').textContent='任务处理中';refreshTasksQuiet()}catch(err){if(token===generation){analysisPending=false;clearInterval(statTimer);$('#videoStatus').textContent='上传失败';analysisError('上传失败，请重试',err.message)}}}
     async function refreshTasksQuiet(){try{const tasks=await unwrap(await fetch(`${api}/tasks?limit=50`));$('#taskCount').textContent=tasks.length}catch(e){}}
     async function refresh(){
       const token=generation,id=activeId;if(!id||refreshing)return;refreshing=true;

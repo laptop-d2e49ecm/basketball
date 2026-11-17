@@ -22,16 +22,21 @@ from worker.event_service import iter_heuristic_events
 logger = logging.getLogger("basketball-video-service")
 
 
-def build_commentary_service(video_path: str | None = None) -> CommentaryService:
+def build_commentary_service(
+    video_path: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> CommentaryService:
     """按 BASKETBALL_COMMENTARY 选择解说实现；llm 失败时内部自动回退模板句。
 
     video_path 用于解说阶段抓事件时刻关键帧（画面观察，BASKETBALL_VISION_CAPTIONS 开关）。
+    metadata 携带用户上传时填写的对阵/比分（team1/team2/score1/score2，可为空），
+    作为用户事实注入解说提示词（空值在 LLMCommentaryService 内逐项兜底）。
     """
     if settings.commentary_backend == "llm":
         from worker.commentary.llm import LLMCommentaryService
 
         logger.info("commentary backend = llm（失败自动回退模板句）")
-        return LLMCommentaryService(video_path=video_path)
+        return LLMCommentaryService(video_path=video_path, context=metadata)
     logger.info("commentary backend = stub（模板句）")
     return StubCommentaryService()
 
@@ -230,7 +235,9 @@ def process_task(task: dict[str, Any], model: Any) -> None:
             "frame_step": frame_step,
         },
     )
-    commentary_service = build_commentary_service(video_path=str(video_path))
+    commentary_service = build_commentary_service(
+        video_path=str(video_path), metadata=task.get("metadata") or {}
+    )
     batch_size = int(getattr(settings, "commentary_batch_size", 5) or 1)
     with events_path.open("w", encoding="utf-8") as events_file:
 
