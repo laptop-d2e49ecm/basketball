@@ -204,6 +204,40 @@ def get_events(task_id: str) -> ApiEnvelope[list[EventItem]]:
     return ApiEnvelope(result=events)
 
 
+@router.get("/{task_id}/frame")
+def get_task_frame(task_id: str, t_ms: int = Query(default=0, ge=0)) -> FileResponse:
+    """Return a small JPEG preview frame for task cards and the video timeline."""
+    row = task_repo.get_task(task_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if row["status"] != "ready":
+        raise HTTPException(status_code=409, detail="视频分析尚未完成")
+    import cv2
+
+    task_dir = settings.runs_dir / task_id
+    frame_time = (t_ms // 1000) * 1000
+    frame_dir = task_dir / "frames_preview"
+    frame_path = frame_dir / f"{frame_time:010d}.jpg"
+    if not frame_path.exists():
+        capture = cv2.VideoCapture(str(row["video_path"]))
+        try:
+            capture.set(cv2.CAP_PROP_POS_MSEC, frame_time)
+            ok, frame = capture.read()
+        finally:
+            capture.release()
+        if not ok:
+            raise HTTPException(status_code=404, detail="该时间点没有视频画面")
+        height, width = frame.shape[:2]
+        if width > 320:
+            frame = cv2.resize(frame, (320, max(1, round(height * 320 / width))))
+        encoded, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 78])
+        if not encoded:
+            raise HTTPException(status_code=500, detail="视频画面生成失败")
+        frame_dir.mkdir(parents=True, exist_ok=True)
+        frame_path.write_bytes(buffer.tobytes())
+    return FileResponse(frame_path, media_type="image/jpeg")
+
+
 @router.get("/{task_id}/narration", response_model=ApiEnvelope[dict[str, Any]])
 def get_narration(task_id: str) -> ApiEnvelope[dict[str, Any]]:
     row = task_repo.get_task(task_id)
@@ -216,7 +250,7 @@ def get_narration(task_id: str) -> ApiEnvelope[dict[str, Any]]:
 
 
 @router.get("/{task_id}/narration/audio")
-def get_narration_audio(task_id: str) -> FileResponse:
+def get_narration_audio(task_id: str, section: int | None = None) -> FileResponse:
     """整场解说稿的神经网络语音（edge-tts），合成结果缓存在任务目录。"""
     row = task_repo.get_task(task_id)
     if row is None:
@@ -229,7 +263,7 @@ def get_narration_audio(task_id: str) -> FileResponse:
     from app.tts import synthesize_narration
 
     try:
-        audio_path = synthesize_narration(narration_path)
+        audio_path = synthesize_narration(narration_path, section)
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return FileResponse(audio_path, media_type="audio/mpeg")

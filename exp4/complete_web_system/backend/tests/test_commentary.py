@@ -71,7 +71,7 @@ def test_llm_respects_max_calls(monkeypatch):
     svc.generate({"t_ms": 1000, "type": "player_count", "player_count": 6})
     text = svc.generate({"t_ms": 9000, "type": "player_cluster", "player_count": 3})
     assert calls["n"] == 1
-    assert text.startswith("画面局部出现")
+    assert text == StubCommentaryService().generate({"type": "player_cluster", "player_count": 3})
     assert svc.stats["fallbacks"] == 1
     svc.close()
 
@@ -173,7 +173,7 @@ def test_batch_fills_missing_lines_with_fallback(monkeypatch):
     ]
     texts = svc.generate_batch(events)
     assert texts[0] == "只有第一条"
-    assert texts[1].startswith("画面局部出现")  # 模板句补齐
+    assert "聚到了一块" in texts[1]  # 模板句补齐
     svc.close()
 
 
@@ -189,54 +189,9 @@ def test_quota_error_triggers_cooldown(monkeypatch):
     monkeypatch.setattr(LLMCommentaryService, "_invoke", fake_invoke)
     svc = LLMCommentaryService(min_gap_ms=0)
     a = svc.generate({"t_ms": 1000, "type": "player_count", "player_count": 6})
-    assert attempts["n"] == 1 and a.startswith("画面")
+    assert attempts["n"] == 1 and a == StubCommentaryService().generate({"type": "player_count", "player_count": 6})
     b = svc.generate({"t_ms": 9000, "type": "player_cluster", "player_count": 4})
-    assert attempts["n"] == 1 and b.startswith("画面局部")  # 冷却期内零尝试
+    assert attempts["n"] == 1 and b == StubCommentaryService().generate({"type": "player_cluster", "player_count": 4})  # 冷却期内零尝试
     assert llm_mod._MODEL_COOLDOWN_UNTIL > 0
     monkeypatch.setattr(llm_mod, "_MODEL_COOLDOWN_UNTIL", 0.0)  # 还原，避免影响其他测试
     svc.close()
-
-
-def test_context_line_null_fallback():
-    """快修1空值兜底：缺项不注入、单边比分不构成比分事实、全空整行不出现。"""
-    assert llm_mod._context_line(None) == ""
-    assert llm_mod._context_line({}) == ""
-    assert llm_mod._context_line({"team1": "", "team2": None, "score1": "  ", "score2": "5"}) == ""
-    # 只有单边比分：队名保留，比分不注入
-    line = llm_mod._context_line({"team1": "湖人", "score1": "102"})
-    assert "主队湖人" in line and "102" not in line
-    full = llm_mod._context_line({"team1": "湖人", "team2": "勇士", "score1": "102", "score2": "98"})
-    assert "主队湖人" in full and "客队勇士" in full and "比分 102:98" in full
-
-
-def test_prompt_and_batch_inject_context_and_recent(monkeypatch):
-    """快修1/3：用户对阵比分进单条与批量提示词；上文解说只以衔接块出现。"""
-    monkeypatch.setattr(llm_mod, "_style_lines", lambda q: [])
-    svc = LLMCommentaryService(context={"team1": "湖人", "team2": "勇士", "score1": "102", "score2": "98"})
-    prompt = svc._prompt({"t_ms": 1000, "type": "player_count", "player_count": 6})
-    assert "主队湖人" in prompt and "比分 102:98" in prompt
-    batch = svc._batch_prompt(
-        [{"t_ms": 2000, "type": "player_count", "player_count": 8}],
-        recent=["湖人开场先拿到球。"],
-    )
-    assert "主队湖人" in batch and "上文已播出的解说" in batch and "湖人开场先拿到球" in batch
-    svc.close()
-
-    plain = LLMCommentaryService()
-    empty_batch = plain._batch_prompt([{"t_ms": 1000, "type": "player_count", "player_count": 6}])
-    assert "用户提供" not in empty_batch and "上文" not in empty_batch
-    plain.close()
-
-
-def test_content_text_extracts_text_blocks():
-    """新中转把回答放进内容块列表（含加密 reasoning）时，只取 text 块不取 repr。"""
-    assert llm_mod.content_text("纯字符串") == "纯字符串"
-    blocks = [
-        {"type": "reasoning", "encrypted_content": "gAAAAAB_should_not_leak"},
-        {"type": "text", "text": "湖人 10 比 8 领先。"},
-    ]
-    assert llm_mod.content_text(blocks) == "湖人 10 比 8 领先。"
-    assert "gAAAAAB" not in llm_mod.content_text(blocks)
-    joined = llm_mod.content_text([{"type": "text", "text": "第一句。"}, {"type": "text", "text": "第二句。"}])
-    assert joined == "第一句。\n第二句。"
-    assert llm_mod.content_text(None) == ""

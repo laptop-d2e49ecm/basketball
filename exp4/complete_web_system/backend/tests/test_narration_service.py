@@ -72,102 +72,62 @@ def test_narration_retries_unsupported_claim(tmp_path: Path):
     assert len(result["tool_calls"]) == 2
 
 
-class OnceAgent:
-    """每次调用都返回固定文本，并记录收到的提示词；用于断言'是否触发重写'。"""
+def test_score_and_scene_evidence():
+    from worker.commentary.evidence import user_facts, unsupported, sanitize
 
-    def __init__(self, text):
-        self.text = text
-        self.calls = 0
-        self.prompts = []
-
-    def invoke(self, payload):
-        self.calls += 1
-        self.prompts.append(payload["messages"][0]["content"])
-        call = {"name": "query_video_events", "args": {"task_id": "task123", "offset": 0, "limit": 1}}
-        return {"messages": [
-            SimpleNamespace(type="ai", tool_calls=[call], content=""),
-            SimpleNamespace(type="tool", content="任务 task123 的关键事件：\n[0.0s] action"),
-            SimpleNamespace(type="ai", tool_calls=[], content=self.text),
-        ]}
+    context = {"team1": "红队", "team2": "蓝队", "score1": 0, "score2": 2}
+    assert "比分 0:2" in user_facts(context)
+    assert "比分" not in user_facts({"team1": "红队", "score1": 0})
+    text = "用户填写的比分为0:2。画面中球员位于篮下。球员三分命中！比分变成3:2。"
+    terms = unsupported(text, [{"scene": "球员站在篮下。"}], context)
+    assert sanitize(text, tuple(terms)) == "用户填写的比分为0:2。画面中球员位于篮下。"
+    assert "篮下" in unsupported("球员在篮下。", [], None)
 
 
-def test_scene_evidence_unlocks_scene_words(tmp_path: Path):
-    """快修2：画面观察明确提到三分线外时，'外线'不再是禁词，一次通过不重写。"""
-    events_path = tmp_path / "events.jsonl"
-    events_path.write_text(
-        json.dumps({"t_ms": 0, "type": "action", "action_zh": "运球", "scene": "进攻方在三分线外运球"}) + "\n",
-        encoding="utf-8",
-    )
-    agent = OnceAgent("外线运着球，节奏不乱。")
-    result = generate_narration("task123", events_path, agent_factory=lambda: agent)
-    assert agent.calls == 1
-    assert result["status"] == "ready"
-    assert result["text"] == "外线运着球，节奏不乱。"
+def test_dynamic_mp3_settings_and_cache(tmp_path, monkeypatch):
+    import sys
+    from app.tts import synthesize_narration
+
+    calls = []
+
+    class Voice:
+        def __init__(self, text, voice, rate, pitch):
+            calls.append((rate, pitch))
+
+        async def stream(self):
+            yield {"type": "audio", "data": b"part"}
+
+    monkeypatch.setitem(sys.modules, "edge_tts", SimpleNamespace(Communicate=Voice))
+    for key in ("RATE", "CLIMAX_RATE", "CLIMAX_PITCH"):
+        monkeypatch.delenv("BASKETBALL_TTS_" + key, raising=False)
+    path = tmp_path / "narration.json"
+    path.write_text(json.dumps({"text": "双方落位。精彩的封盖！"}), encoding="utf-8")
+    audio = synthesize_narration(path)
+    assert audio.read_bytes() == b"partpart"
+    assert calls == [("+10%", "+0Hz"), ("+35%", "+25Hz")]
+    synthesize_narration(path)
+    assert len(calls) == 2
+    monkeypatch.setenv("BASKETBALL_TTS_CLIMAX_RATE", "+28%")
+    synthesize_narration(path)
+    assert calls[-1] == ("+28%", "+25Hz")
 
 
-def test_user_score_unlocks_score_words_and_injects_prompt(tmp_path: Path):
-    """快修1：用户填了比分时'领先'解禁，且对阵与比分注入提示词。"""
-    events_path = tmp_path / "events.jsonl"
-    events_path.write_text('{"t_ms":0,"type":"action","action_zh":"传球"}\n', encoding="utf-8")
-    agent = OnceAgent("湖人 10 比 8 领先勇士。")
-    result = generate_narration(
-        "task123", events_path, agent_factory=lambda: agent,
-        context={"team1": "湖人", "team2": "勇士", "score1": "10", "score2": "8"},
-    )
-    assert agent.calls == 1  # '领先'已解禁，没有触发重写
-    assert result["text"] == "湖人 10 比 8 领先勇士。"
-    assert "主队湖人" in agent.prompts[0] and "比分 10:8" in agent.prompts[0]
+def test_narration_budget_covers_video_tail_and_contiguous_intervals(tmp_path):
+    path = tmp_path / "events.jsonl"
+    path.write_text("".join(json.dumps({"t_ms": 3000 + n * 1000, "type": "action"}) + "\n" for n in range(21)), encoding="utf-8")
+    agent = FakeAgent()
+    result = generate_narration("task123", path, agent_factory=lambda: agent,
+                                context={"video_duration_seconds": 60})
+    first, last = result["sections"]
+    assert first["start_ms"] == 0
+    assert first["end_ms"] == last["start_ms"] == 23000
+    assert last["end_ms"] == 60000
+    assert "约 204 个汉字" in agent.calls[1]
+    assert "现场解说" in agent.calls[0]
+    assert "一至两句" not in agent.calls[0]
 
 
-def test_persistent_ban_sanitizes_instead_of_failing(tmp_path: Path):
-    """快修2：两稿都含无证据禁词时按句剔除兜底，整篇解说不再失败。"""
-    events_path = tmp_path / "events.jsonl"
-    events_path.write_text('{"t_ms":0,"type":"action","action_zh":"运球"}\n', encoding="utf-8")
-    agent = OnceAgent("外线出手了。球员在跑位。")  # 事件无画面观察，'外线'始终无证据
-    result = generate_narration("task123", events_path, agent_factory=lambda: agent)
-    assert agent.calls == 2  # 重写一次
-    assert result["status"] == "ready"  # 兜底后整篇不失败
-    assert "外线" not in result["text"] and result["text"] == "球员在跑位。"
-
-
-def test_run_task_narration_passes_metadata_context(tmp_path: Path, monkeypatch):
-    """快修1：run_task_narration 从任务元数据取对阵/比分传给生成器；读不到时回退空。"""
-    events_path = tmp_path / "events.jsonl"
-    events_path.write_text('{"t_ms":0,"type":"action"}\n', encoding="utf-8")
-    monkeypatch.setattr("app.db.task_repo.get_task", lambda tid: {"metadata": {"team1": "湖人"}})
-    captured = {}
-
-    def fake_generate(task_id, path, *, context=None, **kwargs):
-        captured["context"] = context
-        return {"task_id": task_id, "status": "ready", "text": "ok", "sections": []}
-
-    monkeypatch.setattr("worker.narration_service.generate_narration", fake_generate)
-    run_task_narration("task123", events_path)
-    assert captured["context"] == {"team1": "湖人"}
-
-    monkeypatch.setattr("app.db.task_repo.get_task", lambda tid: None)
-    run_task_narration("task123", events_path)
-    assert captured["context"] == {}
-
-
-def test_narration_extracts_text_from_block_content(tmp_path: Path):
-    """新中转最终消息 content 为块列表（reasoning+text）时，整场解说只取 text 块。"""
-    events_path = tmp_path / "events.jsonl"
-    events_path.write_text('{"t_ms":0,"type":"action"}\n', encoding="utf-8")
-
-    class BlocksAgent(OnceAgent):
-        def invoke(self, payload):
-            self.calls += 1
-            call = {"name": "query_video_events", "args": {"task_id": "task123", "offset": 0, "limit": 1}}
-            return {"messages": [
-                SimpleNamespace(type="ai", tool_calls=[call], content=""),
-                SimpleNamespace(type="tool", content="任务 task123 的关键事件：\n[0.0s] action"),
-                SimpleNamespace(type="ai", tool_calls=[], content=[
-                    {"type": "reasoning", "encrypted_content": "gAAAAAB_should_not_leak"},
-                    {"type": "text", "text": "球员疑似传球。"},
-                ]),
-            ]}
-
-    result = generate_narration("task123", events_path, agent_factory=lambda: BlocksAgent("x"))
-    assert result["status"] == "ready"
-    assert result["text"] == "球员疑似传球。"
+def test_track_number_cannot_be_spoken_as_jersey_number():
+    from worker.commentary.evidence import unsupported
+    assert "161号" in unsupported("白衣161号传球。", [{"track_id": 161}], None)
+    assert not unsupported("白衣26号传球。", [{"scene": "白衣26号持球。"}], None)

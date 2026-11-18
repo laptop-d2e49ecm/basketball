@@ -30,25 +30,70 @@ def ensure_table() -> None:
             """
             CREATE TABLE IF NOT EXISTS agent_sessions (
                 session_id TEXT PRIMARY KEY,
+                task_id TEXT,
                 history TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
             """
         )
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(agent_sessions)")}
+        if "task_id" not in columns:
+            db.execute("ALTER TABLE agent_sessions ADD COLUMN task_id TEXT")
+        db.execute("CREATE INDEX IF NOT EXISTS ix_agent_sessions_task_updated ON agent_sessions(task_id, updated_at DESC)")
     _TABLE_READY = True
 
 
-def new_session() -> str:
+def new_session(task_id: str | None = None) -> str:
     ensure_table()
     session_id = f"sess_{secrets.token_hex(6)}"
     now = _now()
     with connection() as db:
         db.execute(
-            "INSERT INTO agent_sessions (session_id, history, created_at, updated_at) VALUES (?, ?, ?, ?)",
-            (session_id, "[]", now, now),
+            "INSERT INTO agent_sessions (session_id, task_id, history, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (session_id, task_id, "[]", now, now),
         )
     return session_id
+
+
+def get_session(session_id: str) -> dict[str, Any] | None:
+    ensure_table()
+    with connection() as db:
+        row = db.execute("SELECT * FROM agent_sessions WHERE session_id = ?", (session_id,)).fetchone()
+    if row is None:
+        return None
+    try:
+        history = json.loads(row["history"])
+    except (ValueError, TypeError):
+        history = []
+    if not isinstance(history, list):
+        history = []
+    return {
+        "session_id": row["session_id"], "task_id": row["task_id"],
+        "history": history, "created_at": row["created_at"], "updated_at": row["updated_at"],
+    }
+
+
+def list_sessions(task_id: str | None = None) -> list[dict[str, Any]]:
+    ensure_table()
+    with connection() as db:
+        if task_id is None:
+            rows = db.execute("SELECT * FROM agent_sessions ORDER BY updated_at DESC, rowid DESC").fetchall()
+        else:
+            rows = db.execute("SELECT * FROM agent_sessions WHERE task_id = ? ORDER BY updated_at DESC, rowid DESC", (task_id,)).fetchall()
+    result = []
+    for row in rows:
+        try:
+            history = json.loads(row["history"])
+        except (ValueError, TypeError):
+            history = []
+        if not isinstance(history, list):
+            history = []
+        title = next((str(item.get("content", ""))[:60] for item in history if item.get("role") == "user"), "新对话")
+        result.append({"session_id": row["session_id"], "task_id": row["task_id"],
+                       "title": title, "message_count": len(history),
+                       "created_at": row["created_at"], "updated_at": row["updated_at"]})
+    return result
 
 
 def load_history(session_id: str) -> list[dict[str, Any]] | None:

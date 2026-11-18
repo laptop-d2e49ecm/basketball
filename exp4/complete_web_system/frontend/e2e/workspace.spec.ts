@@ -149,7 +149,7 @@ test('six short tips rotate every six seconds and restart the cycle', async ({ p
   await expect(tip).toHaveText(first)
 })
 
-test('playback follows narration sections while details keep every event', async ({ page, context, browserName }) => {
+test('playback follows narration sections without event details', async ({ page, context, browserName }) => {
   const backend = await mockBackend(page)
   backend.finish()
   const rows = Array.from({ length: 45 }, (_, i) => ({ ...event, t_ms: i * 200, text: '比赛事件 ' + i }))
@@ -160,8 +160,8 @@ test('playback follows narration sections while details keep every event', async
   await expect(cards).toHaveCount(1)
   await expect(page.locator('.cv-seek-node')).toHaveCount(1)
   await expect(cards).toContainText(narration.text)
-  await page.locator('.cv-event-details summary').click()
-  await expect(page.locator('.cv-event-list button')).toHaveCount(45)
+  await expect(page.locator('.cv-event-details')).toHaveCount(0)
+  await expect(page.getByText('音频待测试', { exact: true })).toHaveCount(0)
   const player = page.locator('.cv-video-stage video')
   await player.evaluate(el => { (el as HTMLVideoElement).currentTime = 4 })
   await page.getByRole('combobox', { name: '视频倍速' }).selectOption('1.5')
@@ -224,14 +224,28 @@ test('commentary audio follows playback speed, pause, seek and mute', async ({ p
   await expect.poll(() => video.evaluate(el => (el as HTMLVideoElement).readyState)).toBeGreaterThan(1)
   await page.getByRole('button', { name: '播放', exact: true }).click()
   await expect.poll(async () => (await state()).some(a => !a.paused && a.time > 0)).toBe(true)
+  await expect.poll(async () => (await state()).some(a => !a.paused && Math.abs(a.rate - .9) < .01)).toBe(true)
   await page.getByLabel('视频倍速').selectOption('2')
-  await expect.poll(async () => (await state()).some(a => !a.paused && a.rate === 2)).toBe(true)
+  await expect.poll(async () => (await state()).some(a => !a.paused && Math.abs(a.rate - 1.8) < .01)).toBe(true)
   await page.getByRole('button', { name: '暂停', exact: true }).click()
   await expect.poll(async () => (await state()).every(a => a.paused)).toBe(true)
   await video.evaluate(el => { (el as HTMLVideoElement).currentTime = 12 })
   await page.getByRole('button', { name: '播放', exact: true }).click()
-  await expect.poll(async () => (await state()).some(a => a.src.includes('section=1') && !a.paused && a.time >= 1.9 && a.rate === 2)).toBe(true)
+  await expect.poll(async () => (await state()).some(a => a.src.includes('section=1') && !a.paused && a.time >= 1.7 && Math.abs(a.rate - 1.8) < .01)).toBe(true)
+  // A real video emits pause and ended before an utterance necessarily finishes.
+  await video.evaluate(el => {
+    const media = el as HTMLVideoElement
+    media.pause()
+    Object.defineProperty(media, 'ended', { configurable: true, value: true })
+    media.dispatchEvent(new Event('ended'))
+  })
+  await expect.poll(async () => (await state()).some(a => a.src.includes('section=1') && !a.paused)).toBe(true)
+  const finishing = (await state()).find(a => a.src.includes('section=1'))!
+  expect(finishing.time).toBeLessThan(8)
+  await expect(page.getByText('正在播完最后一句…')).toBeVisible()
+  await video.evaluate(el => { Object.defineProperty(el, 'ended', { configurable: true, value: false }) })
   await page.getByRole('button', { name: '关闭解说声音' }).click()
   await expect.poll(async () => (await state()).every(a => a.paused)).toBe(true)
+  await page.getByRole('button', { name: '播放', exact: true }).click()
   expect(await video.evaluate(el => (el as HTMLVideoElement).paused)).toBe(false)
 })

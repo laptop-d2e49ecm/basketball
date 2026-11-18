@@ -182,6 +182,22 @@ def update_task_metadata(task_id: str, **fields: Any) -> None:
         )
 
 
+def expected_analysis_seconds(frames: int | None) -> float | None:
+    if not frames:
+        return None
+    with connection() as db:
+        rows = db.execute(
+            """SELECT total_seconds / frames_done AS seconds_per_frame FROM tasks
+               WHERE status = 'ready' AND total_seconds > 0 AND frames_done BETWEEN ? AND ?
+               ORDER BY finished_at DESC LIMIT 5""",
+            (max(1, frames // 2), frames * 2),
+        ).fetchall()
+    if not rows:
+        return None
+    from statistics import median
+    return round(frames * median(row["seconds_per_frame"] for row in rows), 1)
+
+
 def notifications_after(task_id: str, after_id: int) -> list[dict[str, Any]]:
     with connection() as db:
         rows = db.execute(

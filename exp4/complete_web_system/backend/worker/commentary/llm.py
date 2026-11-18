@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any
 
+from worker.commentary.evidence import sanitize, unsupported, user_facts
 from worker.commentary.base import CommentaryService
 from worker.commentary.stub import StubCommentaryService
 
@@ -29,11 +30,11 @@ logger = logging.getLogger("basketball-worker.commentary")
 SYSTEM_PROMPT = (
     "你是篮球比赛的现场解说员，说话简短、口语化、有现场感。"
     "你只能依据本条事件给出的事实说话（包括'画面观察'对截图的客观描述）。"
-    "动作识别事件给出的动作（如三分出手、运球、传球、抢断）属于事实，可以解说，"
+    "动作类别来自模型预测，没得到画面印证时可用“看起来像”“像是要”自然留有余地，"
     "但只许用事实里给出的那一个动作，不许引申出别的动作或结果；"
     "除此之外，绝对不许出现事实里没有的信息："
     "不许说比分、投篮命中与否、球员姓名、球队名"
-    "（若事实里给出'用户提供的对阵与比分'，其中给出的队名和比分可以直接使用），也不许说"
+    "（用户填写的比赛资料中列出的队名和比分可以原样引用；画面观察明确给出的球衣颜色、号码和球队文字可用于称呼对应球员，不能把track_id当号码），也不许说"
     "'时间走完''比赛结束''暂停''犯规'这类事实里没有的情节，"
     "也不许说'最后''终场''压哨''节末'这类赛况判断，"
     "更不许推测接下来会发生什么（例如'马上要发球''要进攻了''准备投篮'）。"
@@ -44,7 +45,7 @@ SYSTEM_PROMPT = (
     "说法要有变化：不要每条都用'人数变成X'，可以换'场上现在…''这边…''一下…'等不同说法。"
     "解说词必须是完整的一句话：不许只写动作名或'动作名+感叹号'（如'传球！'），"
     "要带上位置、人数或节奏等本条事实里的细节；同类动作再次出现时必须换一种说法。"
-    "输出只要一句解说词（不超过 30 字），不要引号、不要解释、不要分点。"
+    "像陪观众看球，用动词领句。平缓时收住，确有精彩动作时用短句提一下劲。不要读时间戳或置信度，不喊口号，也不要句句都喊好球。输出一句能直接念出来的解说词（不超过30字）。"
 )
 
 BATCH_SYSTEM_PROMPT = SYSTEM_PROMPT + (
@@ -149,30 +150,6 @@ def content_text(content: Any) -> str:
     return str(content or "")
 
 
-def _context_line(context: dict[str, Any] | None) -> str:
-    """用户上传时填写的对阵与比分 → 注入提示词的事实行。
-
-    空值逐项兜底：队名缺哪边就不写哪边；比分必须两边都有才构成事实；
-    全部为空时返回空串，提示词完全不出现这一行。
-    """
-    if not isinstance(context, dict):
-        return ""
-    team1 = str(context.get("team1") or "").strip()
-    team2 = str(context.get("team2") or "").strip()
-    score1 = str(context.get("score1") or "").strip()
-    score2 = str(context.get("score2") or "").strip()
-    parts: list[str] = []
-    if team1:
-        parts.append(f"主队{team1}")
-    if team2:
-        parts.append(f"客队{team2}")
-    if score1 and score2:
-        parts.append(f"比分 {score1}:{score2}")
-    if not parts:
-        return ""
-    return "用户提供的对阵与比分（视为可信事实，其中给出的队名和比分可以直接使用）：" + "，".join(parts) + "。\n"
-
-
 def _fmt_sec(t_ms: Any) -> str:
     try:
         seconds = float(t_ms) / 1000.0
@@ -265,7 +242,8 @@ class LLMCommentaryService(CommentaryService):
         self._prev: dict[str, Any] | None = None
         self._scene_cache: dict[int, str] = {}
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="commentary")
-        self._context = _context_line(context)
+        self._metadata = context
+        self._context = user_facts(context)
         self._recent: list[str] = []  # 最近已播出的解说（批量间衔接用）
         self._grabber = None
         self._vision_budget = 0
@@ -408,6 +386,12 @@ class LLMCommentaryService(CommentaryService):
         return lines[:n]
 
     # ---- 单条生成（兼容旧调用；批量为默认路径）----
+    def _checked(self, text: str, event: dict[str, Any]) -> str:
+        terms = unsupported(text, [event], self._metadata)
+        if not terms:
+            return text
+        return sanitize(text, tuple(terms)) or self._fallback.generate(event)
+
     def generate(self, event: dict[str, Any]) -> str:
         key = _event_key(event)
         sec = event.get("t_ms") or 0
@@ -421,7 +405,7 @@ class LLMCommentaryService(CommentaryService):
         if last and age_ms < self._min_gap_ms:
             self._deduped += 1
             self._prev = event
-            return last[1]
+            return self._checked(last[1], event)
 
         # 护栏 2：单任务调用上限 / 配额熔断冷却
         if self._calls >= self._max_calls or time.time() < _MODEL_COOLDOWN_UNTIL:
@@ -440,6 +424,7 @@ class LLMCommentaryService(CommentaryService):
             if not text:
                 raise RuntimeError("空输出")
             self._calls += 1
+            text = self._checked(text, event)
             self._last[key] = (int(float(sec)), text)
             self._recent = [*self._recent, text][-2:]
             self._last_sec = time.perf_counter() - started
@@ -473,7 +458,7 @@ class LLMCommentaryService(CommentaryService):
                 age_ms = 1e18
             if last and age_ms < self._min_gap_ms:
                 self._deduped += 1
-                texts[i] = last[1]
+                texts[i] = self._checked(last[1], ev)
                 self._prev = ev
                 continue
             if self._calls >= self._max_calls or time.time() < _MODEL_COOLDOWN_UNTIL:
@@ -515,6 +500,7 @@ class LLMCommentaryService(CommentaryService):
                 logger.warning("commentary LLM 批量失败，整批回退模板句 err=%s", exc)
 
             for (i, ev), line in zip(pending, lines):
+                line = self._checked(line, ev)
                 texts[i] = line
                 key = _event_key(ev)
                 entry = (int(float(ev.get("t_ms") or 0)), line)

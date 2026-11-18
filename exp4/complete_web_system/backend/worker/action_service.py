@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from bisect import bisect_left
 import json
 import logging
+import hashlib
+import tempfile
+from importlib.metadata import version
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Iterator
@@ -130,49 +134,63 @@ def iter_action_events(
     if not tracks:
         return
 
-    last_emitted: dict[tuple[int, int, str], int] = {}
+    windows = []
     for tid in sorted(tracks):
         observations = sorted(tracks[tid], key=lambda o: o["t_ms"])
-        start_ms = observations[0]["t_ms"]
+        times = [o["t_ms"] for o in observations]
+        start_ms = times[0]
         end_ms = observations[-1]["t_ms"]
         window_start = start_ms
         while window_start + window_ms <= end_ms + window_ms // 2:
             center_ms = window_start + window_ms // 2
-            window = [o for o in observations
-                      if window_start <= o["t_ms"] < window_start + window_ms]
+            window = observations[bisect_left(times, window_start):bisect_left(times, window_start + window_ms)]
             window_start += stride_ms
             if len(window) < MIN_WINDOW_FRAMES:
                 continue
-            frames = frame_loader([o["frame_idx"] for o in window])
-            crops = []
-            for obs, img in zip(window, frames):
-                if img is None:
-                    continue
-                rect = _expand_square(obs["cx"], obs["cy"], obs["w"], obs["h"],
-                                      img.shape[1], img.shape[0])
-                if rect is None:
-                    continue
-                crops.append(img[rect[1]:rect[3], rect[0]:rect[2]])
-            if len(crops) < MIN_WINDOW_FRAMES:
+            windows.append((center_ms, tid, window))
+
+    # Decode overlapping windows together, then apply cooldown in the original
+    # track order so changing the decoder schedule cannot change the events.
+    predictions = {}
+    for index in sorted(range(len(windows)), key=lambda i: windows[i][2][0]["frame_idx"]):
+        center_ms, tid, window = windows[index]
+        frames = frame_loader([o["frame_idx"] for o in window])
+        crops = []
+        for obs, img in zip(window, frames):
+            if img is None:
                 continue
-            label, prob = recognizer.classify(crops)
-            if label == recognizer.background_class or prob < conf_threshold:
+            rect = _expand_square(obs["cx"], obs["cy"], obs["w"], obs["h"],
+                                  img.shape[1], img.shape[0])
+            if rect is None:
                 continue
-            zone = (int(window[-1]["cx"] * ZONE_GRID), int(window[-1]["cy"] * ZONE_GRID))
-            if center_ms - last_emitted.get((*zone, label), -10**9) < cooldown_ms:
-                continue
-            last_emitted[(*zone, label)] = center_ms
-            yield {
-                "t_ms": center_ms,
-                "type": "action",
-                "source": "action_model",
-                "action": label,
-                "action_zh": recognizer.zh_names.get(label, label),
-                "conf": round(prob, 3),
-                "track_id": tid,
-                "player_count": frame_counts.get(window[len(window) // 2]["frame_idx"]),
-                "track_ids": [tid],
-            }
+            crops.append(img[rect[1]:rect[3], rect[0]:rect[2]])
+        if len(crops) < MIN_WINDOW_FRAMES:
+            continue
+        label, prob = recognizer.classify(crops)
+        if label == recognizer.background_class or prob < conf_threshold:
+            continue
+        predictions[index] = (label, prob)
+
+    last_emitted: dict[tuple[int, int, str], int] = {}
+    for index, (center_ms, tid, window) in enumerate(windows):
+        if index not in predictions:
+            continue
+        label, prob = predictions[index]
+        zone = (int(window[-1]["cx"] * ZONE_GRID), int(window[-1]["cy"] * ZONE_GRID))
+        if center_ms - last_emitted.get((*zone, label), -10**9) < cooldown_ms:
+            continue
+        last_emitted[(*zone, label)] = center_ms
+        yield {
+            "t_ms": center_ms,
+            "type": "action",
+            "source": "action_model",
+            "action": label,
+            "action_zh": recognizer.zh_names.get(label, label),
+            "conf": round(prob, 3),
+            "track_id": tid,
+            "player_count": frame_counts.get(window[len(window) // 2]["frame_idx"]),
+            "track_ids": [tid],
+        }
 
 
 class VideoFrameLoader:
@@ -200,13 +218,15 @@ class VideoFrameLoader:
                 ok = False
                 img = None
                 while self._pos <= idx:
-                    ok, img = self.cap.read()
+                    ok = self.cap.grab()
+                    if ok and self._pos == idx:
+                        ok, img = self.cap.retrieve()
                     self._pos += 1
                     if not ok:
                         break
             if ok and img is not None:
                 if len(self._cache) >= self.CACHE_LIMIT:
-                    self._cache.clear()
+                    self._cache.pop(next(iter(self._cache)))
                 self._cache[idx] = img
             out.append(img if ok else None)
         return out
@@ -214,3 +234,43 @@ class VideoFrameLoader:
     def close(self) -> None:
         self._cache.clear()
         self.cap.release()
+
+
+def recognize_video_actions(video: Path, detections: Path, model: Path, meta: Path,
+                            cache_dir: Path, threshold: float, cooldown_ms: int) -> list[dict[str, Any]]:
+    if not model.is_file() or not meta.is_file():
+        logger.warning("动作模型或元数据缺失：%s", model)
+        return []
+    # Only deterministic visual predictions are shared. Commentary and match
+    # metadata belong to individual tasks.
+    digest = hashlib.sha256()
+    for path in (video, detections, model, meta, Path(__file__)):
+        with path.open("rb") as stream:
+            digest.update(hashlib.file_digest(stream, "sha256").digest())
+    digest.update(json.dumps([threshold, cooldown_ms, cv2.__version__, np.__version__,
+                              version("onnxruntime")]).encode())
+    target = cache_dir / (digest.hexdigest() + ".json")
+    if target.is_file():
+        try:
+            rows = json.loads(target.read_text(encoding="utf8"))
+            if isinstance(rows, list) and all(isinstance(row, dict) and "t_ms" in row for row in rows):
+                return rows
+        except (OSError, ValueError):
+            logger.warning("动作缓存无法读取，重新计算")
+    recognizer = ActionRecognizer(model, meta)
+    if not recognizer.is_available():
+        return []
+    loader = VideoFrameLoader(video)
+    try:
+        rows = list(iter_action_events(detections, loader, recognizer,
+                                       conf_threshold=threshold, cooldown_ms=cooldown_ms))
+    finally:
+        loader.close()
+    try:
+        cache_dir.mkdir(exist_ok=True, parents=True)
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf8", dir=cache_dir, delete=False) as tmp:
+            json.dump(rows, tmp, ensure_ascii=False)
+        Path(tmp.name).replace(target)
+    except OSError:
+        logger.warning("动作缓存写入失败，本次结果仍可用")
+    return rows

@@ -100,7 +100,6 @@ const basketballTips = [
 const tipIndex = ref(0)
 let tipTimer = 0
 const copyNotice = ref('')
-const detailsOpen = ref(false)
 const playbackRate = ref(1)
 const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2]
 let taskTimer = 0
@@ -126,10 +125,6 @@ const stageIndex = computed(() => {
 const stageNames = ['提交视频', '读取视频', '检测球员', '整理解说', '完成']
 const stageText = computed(() => ({ queued: '等待分析', decoding: '正在读取视频', detecting: '正在检测球员', action: '正在识别动作', commentary: '正在生成事件解说', narrating: '正在生成整场解说', ready: '分析完成', failed: '分析失败' }[task.value?.stage ?? 'queued'] ?? '正在分析中'))
 const progress = computed(() => Math.max(0, Math.min(100, Math.round((task.value?.progress ?? 0) * 100))))
-const eventLabels: Record<string, string> = {
-  player_count: '场上人数', player_count_change: '人数变化', player_count_snapshot: '人数快照',
-  group_direction_change: '移动方向变化', player_cluster: '球员聚集', action: '动作预测',
-}
 const stripItems = computed<StripItem[]>(() => {
   const sections = narration.value?.sections?.filter(item => item.text.trim()) ?? []
   const cards: StripItem[] = []
@@ -379,7 +374,6 @@ async function loadResult(id: string, token: number): Promise<void> {
 }
 async function openRoute(): Promise<void> {
   tipIndex.value = 0
-  detailsOpen.value = false
   copyNotice.value = ''
   generation += 1
   const token = generation
@@ -557,7 +551,7 @@ onBeforeUnmount(() => { clearFile(); stopTimers(); window.removeEventListener('r
         <section class="cv-chat-panel cv-panel"><header>AI 对话 <button class="cv-history-trigger" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen">对话历史</button><span>当前视频</span></header><div v-if="historyOpen" class="cv-history"><div class="cv-history-head"><b>对话历史</b><button @click="historyOpen = false">×</button></div><button class="cv-btn cv-primary" @click="newChat">＋ 新建对话</button><button v-for="item in sessions" :key="item.session_id" class="cv-history-item" @click="loadSession(item.session_id)"><b>{{ item.title }}</b><small>{{ timeLabel(item.updated_at) }} · {{ item.message_count }} 条消息</small></button><p v-if="!sessions.length">暂无对话记录</p></div><div v-else class="cv-chat-content"><div class="cv-messages"><div v-if="!chatTurns.length" class="cv-chat-welcome"><span>✦</span><b>和 AI 聊聊这场球</b><p>提问会关联当前视频的真实事件，回答不会直接把模型预测当成进球事实。</p></div><div v-for="(turn, index) in chatTurns" :key="index" class="cv-message" :class="turn.role"><p>{{ turn.content }}</p><details v-if="turn.tool_calls?.length"><summary>{{ turn.tool_calls.length }} 次工具调用</summary><div v-for="(call, callIndex) in turn.tool_calls" :key="callIndex">{{ call.tool }} · {{ call.status === 'ok' ? '成功' : '失败' }}</div></details></div></div><div class="cv-quick"><button @click="askQuick('总结这段比赛的关键事件')">总结比赛</button><button @click="askQuick('人数变化最大的时段是什么时候？')">人数变化</button><button @click="askQuick('有哪些疑似三分出手？')">三分出手</button></div><form class="cv-chat-compose" @submit.prevent="sendChat()"><input v-model="chatDraft" maxlength="500" placeholder="就这场比赛继续提问…" aria-label="向 AI 提问"><button :disabled="chatBusy || !chatDraft.trim()" aria-label="发送">↑</button></form><small v-if="chatError" class="cv-chat-error">{{ chatError }}</small></div></section>
       <section class="cv-commentary cv-panel" aria-label="赛事解说"><div class="cv-ruler" @click="seek"><div class="cv-ruler-fill" :style="{ width: pinPosition(currentTime * 1000) }"></div><span v-for="(item, index) in stripItems" :key="index" class="cv-ruler-node" :class="{ active: item.start_ms === stripItems[activeStripIndex]?.start_ms }" :style="{ left: pinPosition(item.start_ms) }" @click.stop="jumpTo(item.start_ms)"></span></div><div class="cv-ruler-labels"><span v-for="tick in [0, .25, .5, .75, 1]" :key="tick">{{ clock(duration * tick) }}</span></div><div ref="stripElement" class="cv-strip"><button v-for="(item, index) in stripItems" :key="`${item.start_ms}-${index}`" class="cv-strip-card" :class="{ active: index === activeStripIndex }" @click="jumpTo(item.start_ms)"><time>{{ clock(item.start_ms / 1000) }}</time><span>{{ item.text }}</span><small>{{ item.label }}</small></button><p v-if="!stripItems.length">暂无解说，等待视频分析结果。</p></div></section></div>
       <section class="cv-panel cv-match-report" aria-label="整场 AI 解说">
-        <header>✦ 整场 AI 解说 <div class="cv-report-tools"><em class="cv-audio-mark" title="解说语音（MP3 合成与浏览器朗读）尚未完成端到端测试，功能待验证">音频待测试</em><small role="status">{{ copyNotice }}</small><button class="cv-btn cv-outline" :disabled="!narration?.text" @click="copyNarration">复制全文</button><span>{{ narrationStatus }}</span></div></header>
+        <header>✦ 整场 AI 解说 <div class="cv-report-tools"><small role="status">{{ copyNotice }}</small><button class="cv-btn cv-outline" :disabled="!narration?.text" @click="copyNarration">复制全文</button><span>{{ narrationStatus }}</span></div></header>
         <div class="cv-report-body">
           <p class="cv-report-text">{{ narration?.text || narration?.error || ({ running: '正在根据比赛事件生成解说…', pending: '解说等待生成。', empty: '当前任务没有可供解说的事件。' } as Record<string,string>)[narration?.status ?? ''] || '整场解说尚未生成。' }}</p>
           <form class="cv-match-ask" @submit.prevent="askAboutMatch">
@@ -568,14 +562,6 @@ onBeforeUnmount(() => { clearFile(); stopTimers(); window.removeEventListener('r
           <p v-if="matchAnswer" class="cv-match-answer" aria-live="polite">{{ matchAnswer }}</p>
         </div>
       </section>
-      <details v-if="events.length" :key="currentTaskId" class="cv-panel cv-event-details" @toggle="detailsOpen = ($event.currentTarget as HTMLDetailsElement).open">
-        <summary>逐事件明细 · {{ events.length }} 条</summary>
-        <div v-if="detailsOpen" class="cv-event-list">
-          <button v-for="(event, index) in events" :key="index" @click="jumpTo(event.t_ms)">
-            <time>{{ clock(event.t_ms / 1000) }}</time><span>{{ event.text || '画面事件' }}</span><small>{{ event.action_zh || eventLabels[event.type] || '事件' }}</small>
-          </button>
-        </div>
-      </details>
       <section class="cv-panel cv-match-report" aria-label="场上人数变化">
         <header>场上人数变化 <span>人数随播放进度更新</span></header>
         <div class="cv-report-body" v-if="countEvents.length">
@@ -595,7 +581,6 @@ onBeforeUnmount(() => { clearFile(); stopTimers(); window.removeEventListener('r
     <dialog ref="exportDialog" @close="exporting = false" class="cv-export-dialog" aria-label="导出解说">
       <h2>导出解说</h2>
       <p>{{ narration?.text }}</p>
-      <small class="cv-audio-note">音频待测试：语音合成与浏览器朗读尚未完成端到端验证。</small>
       <NarrationSpeech :rate="playbackRate" v-if="exporting && narration?.status === 'ready'" :key="currentTaskId" :url="audioUrl" :text="narration.text" />
       <button class="cv-btn cv-outline" :disabled="downloading || narration?.status !== 'ready'" @click="downloadAudio">{{ downloading ? '正在准备 MP3…' : '下载 MP3' }}</button>
       <button class="cv-btn cv-primary" @click="exportNarration">下载文本</button>

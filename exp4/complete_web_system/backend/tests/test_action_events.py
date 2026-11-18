@@ -56,12 +56,12 @@ def test_action_events_threshold_background_cooldown(tmp_path):
     scripted = [
         ("dribble", 0.90),  # t1 中心 500ms → 产出
         ("dribble", 0.95),  # t1 中心 1500ms → 同动作冷却期内，抑制
-        ("pass", 0.85),     # t1 中心 2500ms → 不同动作，产出
-        ("_none", 0.99),    # t1 中心 3500ms → 背景类，永不产出
-        ("dribble", 0.50),  # t1 中心 4500ms → 低于阈值，抑制
         ("sag", 0.90),      # t2 中心 1500ms → 产出
+        ("pass", 0.85),     # t1 中心 2500ms → 不同动作，产出
         ("sag", 0.90),      # t2 中心 2500ms → 冷却抑制
+        ("_none", 0.99),    # t1 中心 3500ms → 背景类，永不产出
         ("sag", 0.90),      # t2 中心 3500ms → 冷却抑制
+        ("dribble", 0.50),  # t1 中心 4500ms → 低于阈值，抑制
     ]
     recognizer = FakeRecognizer(scripted)
     events = list(iter_action_events(detections, _loader, recognizer))

@@ -11,29 +11,16 @@ let upcoming: HTMLAudioElement | null = null
 let index = -1
 let stalled = false
 let wantsPlay = false
-let spoken: SpeechSynthesisUtterance | null = null
-let spokenKey = ''
-let useSpeech = false
-
-function stopSpeech() {
-  if (spoken) {
-    spoken.onerror = spoken.onend = null
-    window.speechSynthesis.cancel()
-    spoken = null
-  }
-  spokenKey = ''
-}
 function release(audio: HTMLAudioElement | null) {
   if (!audio) return
-  audio.onloadedmetadata = audio.oncanplay = audio.onerror = null
+  audio.onloadedmetadata = audio.oncanplay = audio.onerror = audio.onended = null
   audio.pause()
   audio.removeAttribute('src')
   audio.load()
 }
 function reset() {
   index = -1
-  wantsPlay = useSpeech = false
-  stopSpeech()
+  wantsPlay = false
   release(current)
   release(upcoming)
   current = upcoming = null
@@ -50,11 +37,9 @@ function prepareNext() {
   }
 }
 function changeCue(i: number) {
-  stopSpeech()
   release(current)
   current = null
   wantsPlay = false
-  useSpeech = !props.segmented
   blocked.value = false
   message.value = ''
   index = i
@@ -69,59 +54,56 @@ function changeCue(i: number) {
   }
   const audio = current
   audio.preload = 'auto'
+  audio.onended = () => { wantsPlay = false; if (props.video?.ended) message.value = '' }
   audio.onloadedmetadata = () => { synchronize(true); prepareNext() }
   audio.oncanplay = () => synchronize(false)
   audio.onerror = () => {
     if (current !== audio) return
-    useSpeech = true
-    synchronize(true)
+    blocked.value = true
+    message.value = '在线语音暂不可用，点击重试'
   }
   if (!audio.getAttribute('src')) audio.src = cueUrl(i)
   else if (audio.error) audio.onerror(new Event('error'))
   else if (audio.readyState >= 1) prepareNext()
 }
-function speakCue(video: HTMLVideoElement, cue: Cue, span: number, offset: number) {
-  if (!('speechSynthesis' in window)) { message.value = '解说语音不可用'; return }
-  const key = index + ':' + video.playbackRate
-  if (spokenKey === key) return
-  stopSpeech()
-  spokenKey = key
-  const from = Math.floor(cue.text.length * Math.min(offset / span, .99))
-  const utterance = new SpeechSynthesisUtterance(cue.text.slice(from))
-  spoken = utterance
-  utterance.lang = 'zh-CN'
-  utterance.rate = video.playbackRate
-  message.value = '本机朗读'
-  utterance.onerror = () => { message.value = '语音不可用，点击重试'; blocked.value = true }
-  window.speechSynthesis.speak(utterance)
-}
 function synchronize(force: boolean) {
   const video = props.video
   if (!video || !enabled.value || !props.cues.length) return
+  // Let the final utterance finish at its current position after the picture ends.
+  // Seeking it to the video's final timestamp would skip unread words.
+  if (video.ended && index === props.cues.length - 1 && current) {
+    if (current.ended) { message.value = ''; return }
+    message.value = '正在播完最后一句…'
+    if (current.paused && !wantsPlay && !blocked.value) {
+      const audio = current
+      wantsPlay = true
+      void audio.play().catch(() => {
+        if (current === audio) { blocked.value = true; message.value = '点击播完最后一句' }
+      }).finally(() => { if (current === audio) wantsPlay = false })
+    }
+    return
+  }
   const now = video.currentTime
   let i = 0
   while (i + 1 < props.cues.length && props.cues[i + 1]!.start_ms <= now * 1000) i++
   if (i !== index) changeCue(i)
   const cue = props.cues[i]!
-  const start = cue.start_ms / 1000
+  const start = i === 0 ? 0 : cue.start_ms / 1000
   const end = props.cues[i + 1]?.start_ms
   const span = Math.max(.1, end !== undefined ? end / 1000 - start : (video.duration || Infinity) - start)
   const offset = Math.max(0, now - start)
   const shouldPlay = !video.paused && !video.ended && !stalled && !video.seeking && now >= start
-  if (useSpeech) {
-    if (shouldPlay) speakCue(video, cue, span, offset)
-    else stopSpeech()
-    return
-  }
+  if (!props.segmented) { message.value = '整场解说稿就绪后可播放语音'; return }
   const audio = current
   if (!audio) return
   if (!shouldPlay) { audio.pause(); wantsPlay = false }
+  if (blocked.value) return
   if (!Number.isFinite(audio.duration)) {
     if (shouldPlay) message.value = '正在准备解说语音…'
     return
   }
-  // Fit a long utterance into its own video interval before applying the user's speed.
-  const fit = Math.max(1, audio.duration / span)
+  // Stretch slightly short narration too, retaining a natural minimum speed.
+  const fit = Math.max(.8, audio.duration / span)
   const target = Math.min(audio.duration, offset * fit)
   audio.playbackRate = Math.min(16, video.playbackRate * fit)
   if (force || Math.abs(audio.currentTime - target) > .35) audio.currentTime = target
@@ -135,8 +117,8 @@ function synchronize(force: boolean) {
       blocked.value = true
       message.value = '点击开启解说声音'
     } else {
-      useSpeech = true
-      synchronize(true)
+      blocked.value = true
+      message.value = '在线语音暂不可用，点击重试'
     }
   }).finally(() => { if (audio === current) wantsPlay = !audio.paused })
 }

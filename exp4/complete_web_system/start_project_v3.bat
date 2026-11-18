@@ -17,7 +17,7 @@ $LogDir = Join-Path $RuntimeDir 'logs'
 $ManifestPath = Join-Path $RuntimeDir 'services.json'
 $PythonExe = Join-Path $BackendDir '.venv\Scripts\python.exe'
 $ViteCli = Join-Path $FrontendDir 'node_modules\vite\bin\vite.js'
-$FrontendUrl = 'http://127.0.0.1:5173/video-v3'
+$FrontendUrl = 'http://127.0.0.1:5173/'
 $ApiHealthUrl = 'http://127.0.0.1:8000/api/v1/health'
 
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
@@ -176,7 +176,7 @@ if (Test-Path -LiteralPath $ManifestPath) {
 
 try {
     if (-not (Test-Path -LiteralPath $PythonExe)) {
-        throw "Backend environment is missing: $PythonExe. Install it using backend\README.md first."
+        throw "Backend environment is missing: $PythonExe. Install it using README.md first."
     }
     if (-not (Test-Path -LiteralPath $ViteCli)) {
         throw "Frontend dependencies are missing. Install them in the frontend folder first."

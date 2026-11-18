@@ -112,8 +112,42 @@ def test_audio_endpoint_serves_file_and_maps_errors(tmp_path: Path, monkeypatch)
     assert exc.value.status_code == 409
 
     _write_narration(task_dir)  # ready 但合成失败（如网络）→ 503
-    monkeypatch.setattr("app.tts.synthesize_narration", lambda _: (_ for _ in ()).throw(RuntimeError("语音合成返回空音频")))
+    monkeypatch.setattr("app.tts.synthesize_narration", lambda *args: (_ for _ in ()).throw(RuntimeError("语音合成返回空音频")))
     with pytest.raises(HTTPException) as exc:
         tasks.get_narration_audio("task123")
     assert exc.value.status_code == 503
     assert "空音频" in exc.value.detail
+
+
+def test_section_audio_uses_same_voice_and_rejects_invalid_section(tmp_path, monkeypatch):
+    narration = _write_narration(tmp_path)
+    calls = _fake_edge_tts(monkeypatch)
+    audio = tts.synthesize_narration(narration, 1)
+    assert audio.name == "narration-section-1.mp3"
+    assert calls[0]["text"] == "随后三分出手。"
+    assert calls[0]["rate"] == tts.DEFAULT_RATE
+    with pytest.raises(ValueError, match="段落不存在"):
+        tts.synthesize_narration(narration, 2)
+
+
+def test_legacy_voice_cache_is_regenerated(tmp_path, monkeypatch):
+    narration = _write_narration(tmp_path)
+    _fake_edge_tts(monkeypatch)
+    audio = tts.synthesize_narration(narration)
+    profile_path = audio.with_suffix(".voice.json")
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    profile[0] = "dynamic-v2"
+    profile_path.write_text(json.dumps(profile), encoding="utf-8")
+    calls = _fake_edge_tts(monkeypatch, payload=b"new-neural-voice")
+    assert tts.synthesize_narration(narration).read_bytes() == b"new-neural-voice"
+    assert len(calls) == 1
+
+
+def test_network_failure_does_not_cache_alternate_voice(tmp_path, monkeypatch):
+    narration = _write_narration(tmp_path)
+    def fail(*args, **kwargs):
+        raise ConnectionError("offline")
+    monkeypatch.setitem(sys.modules, "edge_tts", SimpleNamespace(Communicate=fail))
+    with pytest.raises(RuntimeError, match="在线语音"):
+        tts.synthesize_narration(narration)
+    assert not narration.with_name("narration.mp3").exists()

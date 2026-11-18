@@ -18,9 +18,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.core.errors import ModelError, NotFoundError
-from app.db import agent_sessions
+from app.db import agent_sessions, task_repo
 from app.schemas.envelope import ApiEnvelope
-from worker.commentary.llm import content_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["agent"])
@@ -30,7 +29,21 @@ _MS_PATTERN = re.compile(r"([0-9]+(?:\.[0-9]+)?)\s*ms")
 
 class AgentChatRequest(BaseModel):
     session_id: str | None = None
+    task_id: str | None = None
     message: str = Field(min_length=1, max_length=500)
+
+
+@router.get("/agent/sessions", response_model=ApiEnvelope[list[dict[str, Any]]])
+def list_agent_sessions(task_id: str | None = None) -> ApiEnvelope[list[dict[str, Any]]]:
+    return ApiEnvelope(result=agent_sessions.list_sessions(task_id))
+
+
+@router.get("/agent/sessions/{session_id}", response_model=ApiEnvelope[dict[str, Any]])
+def get_agent_session(session_id: str) -> ApiEnvelope[dict[str, Any]]:
+    session = agent_sessions.get_session(session_id)
+    if session is None:
+        raise NotFoundError("会话不存在")
+    return ApiEnvelope(result=session)
 
 
 def _provider_name() -> str:
@@ -53,15 +66,11 @@ def _get_agent(request: Request):
 
 
 def _history_to_messages(history: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """存储格式（user/agent）转模型输入格式（user/assistant），工具过程不回传模型。
-
-    content 经 content_text 归一：新中转可能把回复存成块列表，历史里残留的
-    列表内容在这里提取纯文本，避免把块结构 repr 回传给模型。
-    """
+    """存储格式（user/agent）转模型输入格式（user/assistant），工具过程不回传模型。"""
     messages = []
     for item in history:
         role = "user" if item.get("role") == "user" else "assistant"
-        content = content_text(item.get("content", ""))
+        content = str(item.get("content", ""))
         if content:
             messages.append({"role": role, "content": content})
     return messages
@@ -107,17 +116,26 @@ def _write_log(session_id: str, user: str, trace: list[dict[str, Any]], elapsed_
 def agent_chat(payload: AgentChatRequest, request: Request) -> ApiEnvelope[dict[str, Any]]:
     started = time.perf_counter()
 
+    if payload.task_id and task_repo.get_task(payload.task_id) is None:
+        raise NotFoundError("视频任务不存在")
+
     if payload.session_id:
-        history = agent_sessions.load_history(payload.session_id)
-        if history is None:
+        session = agent_sessions.get_session(payload.session_id)
+        if session is None:
             raise NotFoundError("会话不存在，请去掉 session_id 重新开始对话")
+        if payload.task_id and session["task_id"] != payload.task_id:
+            raise HTTPException(status_code=409, detail="会话与视频任务不匹配")
+        history = session["history"]
         session_id = payload.session_id
+        task_id = session["task_id"]
     else:
-        session_id = agent_sessions.new_session()
+        task_id = payload.task_id
+        session_id = agent_sessions.new_session(task_id)
         history = []
 
     agent = _get_agent(request)
-    messages = _history_to_messages(history) + [{"role": "user", "content": payload.message}]
+    task_context = f"当前视频任务编号为 {task_id}。回答本轮问题前，先调用 query_video_events 查询该任务的事件，并以查询结果为依据。\n" if task_id else ""
+    messages = _history_to_messages(history) + [{"role": "user", "content": task_context + payload.message}]
 
     try:
         result = agent.invoke({"messages": messages})
@@ -134,7 +152,7 @@ def agent_chat(payload: AgentChatRequest, request: Request) -> ApiEnvelope[dict[
             ) from exc
         raise ModelError("AI 服务暂时不可用，请稍后重试") from exc
 
-    final = content_text(result["messages"][-1].content).strip() or "（AI 未返回内容，请重试）"
+    final = str(result["messages"][-1].content)
     trace = _trace_from_messages(result["messages"])
     elapsed_ms = round((time.perf_counter() - started) * 1000)
 
@@ -150,6 +168,7 @@ def agent_chat(payload: AgentChatRequest, request: Request) -> ApiEnvelope[dict[
     return ApiEnvelope(
         result={
             "session_id": session_id,
+            "task_id": task_id,
             "agent": final,
             "tool_calls": trace,
             "elapsed_ms": elapsed_ms,

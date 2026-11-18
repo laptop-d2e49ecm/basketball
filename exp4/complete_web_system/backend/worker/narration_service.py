@@ -2,21 +2,15 @@ from __future__ import annotations
 
 import json
 import logging
-import math
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from worker.commentary.evidence import sanitize, unsupported, user_facts
 from worker.commentary.llm import content_text
+from worker.commentary.stub import StubCommentaryService
 
 EVENTS_PER_SEGMENT = 20
-# 硬禁词：检测与画面事实永远无法支撑的断言（未检测教练/裁判；命中与否是结果判断）
-HARD_CLAIMS = ("教练", "裁判", "命中", "进球")
-# 比分类禁词：用户上传时填写了比分（两边都有）才解禁
-SCORE_CLAIMS = ("得分", "比分", "领先", "落后")
-# 画面证据类禁词：本段事件的画面观察出现对应证据才解禁
-SCENE_CLAIMS = {"外线": ("外线", "三分线"), "篮下": ("篮下",), "球权": ("持球", "球在", "球位于")}
 logger = logging.getLogger("basketball-narration")
 
 
@@ -27,55 +21,6 @@ def _events(path: Path) -> list[dict[str, Any]]:
             if line.strip():
                 rows.append(json.loads(line))
     return sorted(rows, key=lambda row: int(row.get("t_ms", 0)))
-
-
-def _user_facts(context: dict[str, Any] | None) -> str:
-    """用户填写的对阵与比分类事实行；空值逐项兜底（缺哪项不写哪项），全空返回空串。"""
-    if not isinstance(context, dict):
-        return ""
-    team1 = str(context.get("team1") or "").strip()
-    team2 = str(context.get("team2") or "").strip()
-    score1 = str(context.get("score1") or "").strip()
-    score2 = str(context.get("score2") or "").strip()
-    parts: list[str] = []
-    if team1:
-        parts.append(f"主队{team1}")
-    if team2:
-        parts.append(f"客队{team2}")
-    if score1 and score2:
-        parts.append(f"比分 {score1}:{score2}")
-    if not parts:
-        return ""
-    return "用户提供的对阵与比分（视为可信事实，其中给出的队名和比分可以直接使用）：" + "，".join(parts) + "。"
-
-
-def _has_user_score(context: dict[str, Any] | None) -> bool:
-    if not isinstance(context, dict):
-        return False
-    return bool(
-        str(context.get("score1") or "").strip() and str(context.get("score2") or "").strip()
-    )
-
-
-def _effective_bans(group: list[dict[str, Any]], user_score: bool) -> tuple[str, ...]:
-    """按事实源分层生成禁词：画面观察有证据、用户给了比分的词解禁。"""
-    bans = list(HARD_CLAIMS)
-    if not user_score:
-        bans.extend(SCORE_CLAIMS)
-    scene_text = "".join(str(row.get("scene") or "") for row in group)
-    bans.extend(
-        word
-        for word, evidences in SCENE_CLAIMS.items()
-        if not any(evidence in scene_text for evidence in evidences)
-    )
-    return tuple(bans)
-
-
-def _sanitize(text: str, banned: tuple[str, ...]) -> str:
-    """按句剔除含禁词的句子；全部被剔时返回空串，由调用方退回中性事实句。"""
-    sentences = [s for s in re.split(r"(?<=[。！？!?])", text) if s.strip()]
-    kept = [s for s in sentences if not any(word in s for word in banned)]
-    return "".join(kept)
 
 
 def generate_narration(
@@ -104,33 +49,42 @@ def generate_narration(
     if not events:
         return {**base, "status": "empty"}
 
-    user_facts = _user_facts(context)
+    facts = user_facts(context)
     if agent_factory is None:
         from app.agent.graph import build_agent
 
         agent_factory = build_agent
     agent = agent_factory()
     previous_tail = ""
-    duration_seconds = max(1, (int(events[-1].get("t_ms", 0)) - int(events[0].get("t_ms", 0))) / 1000)
-    section_count = math.ceil(len(events) / EVENTS_PER_SEGMENT)
-    target_chars = max(30, min(90, round(duration_seconds * 4 / section_count)))
+    duration_ms = max(
+        int(events[-1].get("t_ms", 0)) + 1000,
+        round(float((context or {}).get("video_duration_seconds") or 0) * 1000),
+    )
     for offset in range(0, len(events), EVENTS_PER_SEGMENT):
         group = events[offset:offset + EVENTS_PER_SEGMENT]
-        banned = _effective_bans(group, _has_user_score(context))
+        start_ms = 0 if offset == 0 else int(group[0].get("t_ms", 0))
+        next_offset = offset + len(group)
+        end_ms = int(events[next_offset].get("t_ms", 0)) if next_offset < len(events) else duration_ms
+        segment_seconds = max(1, (end_ms - start_ms) / 1000)
+        target_chars = max(15, round(segment_seconds * 5.5))
         prompt = (
-            f"请为视频任务 {task_id} 生成赛后中文解说。"
+            f"请为视频任务 {task_id} 生成跟随视频播放的中文现场解说。"
             f"必须先调用 query_video_events，参数 task_id={task_id}、"
             f"offset={offset}、limit={len(group)}，只依据工具返回的这段事件。"
-            f"这是整场解说的一小段，正文严格控制在约 {target_chars} 个汉字，只挑最有代表性的1至2个事件，按时间顺序自然讲述，不要编号。"
+            f"本段覆盖视频 {start_ms / 1000:.1f} 至 {end_ms / 1000:.1f} 秒，共 {segment_seconds:.1f} 秒。"
+            f"按云健正常解说语速，正文目标约 {target_chars} 个汉字（上下浮动10%），让朗读尽量覆盖本段时长。"
+            "围绕事件中有依据的动作过程、持球人的移动、传接衔接和画面变化展开，使用多句长短结合的口语，避免只用一两句话概括后留下大段空白。"
+            "先交代动作，再补充工具中实际提供的细节，最后自然衔接下一句；禁止把同一个事实换说法重复凑时长。"
+            "若画面证据不足，允许缩短；不能为填满时间虚构动作、结果或情绪。"
             "不要罗列置信度和全部事件，不要提任务编号、工具、分页、事件总数或剩余条数。"
-            "动作类别只是模型预测，请用'疑似'或'可能'表达；不能把出手说成命中。"
-            "不得编造攻防战术、球员姓名、球队、赛果；"
+            "像坐在场边陪观众看球：从球怎么走、球员怎么动讲起。有关联的动作用一句话接起来，同时出现的动作不要硬写成先后。\n画面平稳就平叙，确有亮点时可用一个短句提气。"
+            "用“看起来像”“似乎要”自然表达不确定，一组动作可共用一个判断，不要每句都说“疑似”。不要用“模型识别到”“节奏明显加快”或“让我们拭目以待”等套话。不得编造攻防战术、球员姓名、球队、赛果，不能把出手说成命中；可以引用画面观察明确关联到动作主体的球队文字、球衣颜色和球衣号码，如“USA白衣26号”，号码看不清就用“白衣球员”。用户仅填写对阵不能据此猜某球员属于哪队。track_id是内部跟踪编号，绝不是球衣号码，禁止把它读成几号球员；"
             "外线、篮下、球权只在事件的画面观察明确提及时可以写；"
-            "比分、得分、领先、落后只在用户提供了比分时可以写。"
-            "如果只有人数或站位事件，就如实描述场面，不要硬猜具体动作。只输出解说正文。"
+            "只能引用用户填写的原比分，不能据此推断某个事件得分、实时比分或赛果。"
+            "把球或持球人当主语，挑一条线讲，不要把运球、传球、突破并排报菜名。有动作时不用从人数开头或用人数收尾。仅有人数时说镜头里看见几人，不能说正式上场几人。比如事实只有传球和随后一次疑似突破，可以说“球传出来了。接下来这一步，看着像是要往里突。”示例只借语气，无对应事实不引用。只输出可直接朗读的正文。"
         )
-        if user_facts:
-            prompt += user_facts
+        if facts:
+            prompt += facts
             if offset == 0:
                 prompt += "这是整场解说的开场段：请在本段自然提到对阵双方，如有比分也带到一次。"
             else:
@@ -165,22 +119,20 @@ def generate_narration(
             text = content_text(getattr(messages[-1], "content", "") or "").strip()
             if not text:
                 raise RuntimeError("Agent 未返回解说文本")
-            unsupported = [phrase for phrase in banned if phrase in text]
-            if not unsupported:
+            violations = unsupported(text, group, context)
+            if not violations:
                 break
             if attempt:
                 # 两稿仍有禁词：按句剔除兜底，绝不让整篇解说因个别断言失败
-                text = _sanitize(text, tuple(unsupported)) or (
-                    f"第 {int(group[0].get('t_ms', 0)) // 1000} 秒前后，画面共有 {len(group)} 条事件。"
-                )
+                text = sanitize(text, tuple(violations)) or StubCommentaryService().generate(group[0])
                 logger.warning(
                     "解说第 %d 段仍含未支持断言，已按句剔除兜底", offset // EVENTS_PER_SEGMENT + 1
                 )
                 break
-            prompt += "上一稿包含没有事件证据的词语（" + "、".join(unsupported) + "），请重新查询事件并改写，避免这些词。"
+            prompt += "上一稿包含没有事件证据的词语（" + "、".join(violations) + "），请重新查询事件并改写，避免这些词。"
         base["sections"].append({
-            "start_ms": int(group[0].get("t_ms", 0)),
-            "end_ms": int(group[-1].get("t_ms", 0)),
+            "start_ms": start_ms,
+            "end_ms": end_ms,
             "event_count": len(group),
             "text": text,
         })

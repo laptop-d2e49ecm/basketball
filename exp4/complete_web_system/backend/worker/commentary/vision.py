@@ -20,9 +20,9 @@ logger = logging.getLogger("basketball-worker.commentary.vision")
 
 ANALYST_PROMPT = (
     "你是篮球比赛画面分析师，看一张比赛视频截图。"
-    "用不超过 40 字客观描述：场上大致局面、球员正在做什么"
+    "用不超过 100 字客观描述：场上大致局面、球员正在做什么"
     "（如运球、护球、争抢、卡位、跑位、贴身防守；看不清动作就只描述站位，不硬猜）、"
-    "球的大致位置。不许出现比分、球员姓名、球队名。直接输出描述，不要任何前后缀。"
+    "球的大致位置。优先交代动作主体的球衣颜色，号码仅在该球员球衣上清楚可读时写成“白衣26号”。球队名或缩写仅可引用同一球衣上清楚可读的文字；不能把记分牌队名直接对应到某个球员。不要根据外貌猜姓名，不许猜被遮挡的号码，不要把跟踪编号当球衣号码。不许出现比分。直接输出描述，不要任何前后缀。"
 )
 
 _VISION = None
@@ -111,7 +111,7 @@ def describe_frame(jpeg_b64: str) -> str | None:
         msg = model.invoke([("user", content)])
         text = str(getattr(msg, "content", msg) or "").strip()
         text = re.sub(r"\s+", " ", text).strip()
-        return text[:60] or None
+        return text[:120] or None
     except Exception as exc:  # noqa: BLE001 - 任何失败都不阻塞解说
         s = str(exc)
         if any(k in s for k in ("403", "429", "额度", "quota", "rate limit", "rate_limit")):

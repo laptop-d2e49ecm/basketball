@@ -12,16 +12,25 @@ class StubCommentaryService(CommentaryService):
         count = int(event.get("player_count", 0))
         if event.get("type") == "action":
             zh = str(event.get("action_zh") or event.get("action") or "动作")
-            sec = (event.get("t_ms") or 0) / 1000
-            conf = event.get("conf")
-            tail = f"（模型置信度 {conf:.0%}）" if isinstance(conf, float) else ""
-            return f"第 {sec:.1f} 秒，有球员{zh}{tail}。"
+            phrases = {
+                "pass": "这一下，看起来是把球传了出去。",
+                "dribble": "球还在手里，看起来是在运球。",
+                "drive": "看持球人这一步，像是要往里突。",
+                "shot_3p": "抬手了，看起来是一次三分尝试！",
+                "shot_2p": "看这一下起手，像是准备两分出手。",
+                "interfere_shot": "这一下，像是在干扰对方出手。",
+                "screen": "留意无球队员，这一下像是掩护。",
+                "rebound": "注意篮板，这一下像是在争球。",
+                "block": "手伸起来了，看着像是要封盖！",
+                "steal": "这一下伸手，像是想把球断下来。",
+            }
+            return phrases.get(event.get("action"), f"留意这个动作，看起来像是{zh}。")
         if event.get("type") == "player_cluster":
-            return f"画面局部出现约 {count} 名球员聚集。"
+            return f"看这边，约有 {count} 名球员聚到了一块。"
         if event.get("type") == "group_direction_change":
-            return "画面中球员群体的整体移动方向出现变化。"
+            return "几名球员换了方向，往另一边跑了。"
         if count == 0:
-            return "当前画面暂未检测到球员，可能存在遮挡或漏检。"
+            return "这会儿看不清球员的位置。"
         if event.get("type") == "player_count_change":
-            return f"画面可见球员人数有所变化，目前检测到约 {count} 名球员。"
-        return f"画面中检测到约 {count} 名球员。"
+            return f"镜头里的人数有变化，这会儿能看到约 {count} 人。"
+        return f"镜头里能看到约 {count} 名球员。"

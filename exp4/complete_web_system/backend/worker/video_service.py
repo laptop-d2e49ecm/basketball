@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.core.coords import normalize_xyxy
 from app.core.device import resolve_torch_device
 from app.db import task_repo
-from worker.action_service import ActionRecognizer, VideoFrameLoader, iter_action_events
+from worker.action_service import recognize_video_actions
 from worker.commentary.base import CommentaryService
 from worker.commentary.stub import StubCommentaryService
 from worker.event_service import iter_heuristic_events
@@ -22,15 +22,10 @@ from worker.event_service import iter_heuristic_events
 logger = logging.getLogger("basketball-video-service")
 
 
-def build_commentary_service(
-    video_path: str | None = None,
-    metadata: dict[str, Any] | None = None,
-) -> CommentaryService:
+def build_commentary_service(video_path: str | None = None, metadata: dict | None = None) -> CommentaryService:
     """按 BASKETBALL_COMMENTARY 选择解说实现；llm 失败时内部自动回退模板句。
 
     video_path 用于解说阶段抓事件时刻关键帧（画面观察，BASKETBALL_VISION_CAPTIONS 开关）。
-    metadata 携带用户上传时填写的对阵/比分（team1/team2/score1/score2，可为空），
-    作为用户事实注入解说提示词（空值在 LLMCommentaryService 内逐项兜底）。
     """
     if settings.commentary_backend == "llm":
         from worker.commentary.llm import LLMCommentaryService
@@ -67,7 +62,11 @@ def process_task(task: dict[str, Any], model: Any) -> None:
         frame_step = 1
         frames_total = None
     cap.release()
-    task_repo.update_task_metadata(task_id, frame_step=frame_step)
+    task_repo.update_task_metadata(
+        task_id, frame_step=frame_step, analysis_started_at=datetime.now(UTC).isoformat(),
+        expected_seconds=task_repo.expected_analysis_seconds(frames_total),
+        video_duration_seconds=frame_total_raw / fps if fps > 0 and frame_total_raw > 0 else None,
+    )
     task_repo.update_task(
         task_id,
         stage="detecting",
@@ -194,28 +193,11 @@ def process_task(task: dict[str, Any], model: Any) -> None:
             },
         )
         try:
-            recognizer = ActionRecognizer(settings.action_model_path, settings.action_meta_path)
-            if recognizer.is_available():
-                loader = VideoFrameLoader(video_path)
-                try:
-                    action_events = list(
-                        iter_action_events(
-                            detections_path,
-                            loader,
-                            recognizer,
-                            conf_threshold=settings.action_conf_threshold,
-                            cooldown_ms=settings.action_cooldown_ms,
-                        )
-                    )
-                finally:
-                    loader.close()
-                logger.info("action stage: %d events for task %s", len(action_events), task_id)
-            else:
-                logger.warning(
-                    "动作模型不可用（%s / %s），本任务仅启发式事件",
-                    settings.action_model_path,
-                    settings.action_meta_path,
-                )
+            action_events = recognize_video_actions(
+                video_path, detections_path, settings.action_model_path, settings.action_meta_path,
+                settings.runs_dir / ".action_cache", settings.action_conf_threshold,
+                settings.action_cooldown_ms,
+            )
         except Exception:
             logger.exception("动作识别失败（task %s），回退启发式事件", task_id)
             action_events = []
@@ -235,9 +217,7 @@ def process_task(task: dict[str, Any], model: Any) -> None:
             "frame_step": frame_step,
         },
     )
-    commentary_service = build_commentary_service(
-        video_path=str(video_path), metadata=task.get("metadata") or {}
-    )
+    commentary_service = build_commentary_service(video_path=str(video_path), metadata=task.get("metadata"))
     batch_size = int(getattr(settings, "commentary_batch_size", 5) or 1)
     with events_path.open("w", encoding="utf-8") as events_file:
 
