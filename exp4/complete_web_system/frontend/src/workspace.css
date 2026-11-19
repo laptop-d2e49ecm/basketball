@@ -98,13 +98,8 @@
 .cv-clear-history { color:#ffa7bf; border-color:#754357; }
 .cv-page-heading .cv-history-notice { color:#efb2ca; }
 
-.cv-tool-guide { margin:10px 12px 0; flex:none; font-size:11px; color:#c4b7c1; border-bottom:1px solid #41333e; padding-bottom:8px; max-height:220px; overflow:auto; }
-.cv-tool-guide summary,.cv-tool-trace summary { cursor:pointer; color:#efb2ca; line-height:1.5; overflow-wrap:anywhere; }
-.cv-tool-guide p { line-height:1.6; }
-.cv-tool-guide ul { list-style:none; padding:0; margin:8px 0; }
-.cv-tool-guide li { margin:12px 0; }
-.cv-tool-guide li b,.cv-tool-guide li span,.cv-tool-guide li code { display:block; line-height:1.6; }
-.cv-tool-guide code,.cv-tool-call code { font-size:10px; color:#ad9ca9; overflow-wrap:anywhere; }
+.cv-tool-trace summary { cursor:pointer; color:#efb2ca; line-height:1.5; overflow-wrap:anywhere; }
+.cv-tool-call code { font-size:10px; color:#ad9ca9; overflow-wrap:anywhere; }
 .cv-tool-trace { margin-top:10px; min-width:0; font-size:11px; }
 .cv-tool-call { margin-top:8px; padding:10px; background:#211c23; border:1px solid #4c3b48; border-radius:7px; }
 .cv-tool-call header { display:flex; flex-wrap:wrap; height:auto; padding:0; border:0; gap:8px; font-size:11px; align-items:center; }
