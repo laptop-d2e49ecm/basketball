@@ -249,3 +249,69 @@ test('commentary audio follows playback speed, pause, seek and mute', async ({ p
   await page.getByRole('button', { name: '播放', exact: true }).click()
   expect(await video.evaluate(el => (el as HTMLVideoElement).paused)).toBe(false)
 })
+
+
+async function mockHistory(page: Page, count = 2, failOnce = false) {
+  await mockBackend(page)
+  let rows = [
+    ...Array.from({ length: count }, (_, index) => ({ ...task, task_id: `history-${index}`, status: index % 2 ? 'failed' : 'ready' })),
+    { ...task, task_id: 'active-task', status: 'running' },
+    { ...task, task_id: 'queued-task', status: 'pending' },
+  ]
+  const deleted: string[] = []
+  await page.route('**/api/v1/**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/v1/tasks' && route.request().method() === 'GET') {
+      const offset = Number(url.searchParams.get('offset') || 0)
+      const limit = Number(url.searchParams.get('limit') || 50)
+      return route.fulfill({ json: { code: 0, result: rows.slice(offset, offset + limit), msg: 'ok' } })
+    }
+    if (route.request().method() === 'DELETE') {
+      const id = url.pathname.split('/').at(-1)!
+      if (failOnce && id === 'history-0') {
+        failOnce = false
+        return route.fulfill({ status: 503, json: { detail: '暂时无法删除' } })
+      }
+      deleted.push(id)
+      rows = rows.filter(item => item.task_id !== id)
+      return route.fulfill({ json: { code: 0, result: { task_id: id, deleted: true }, msg: 'ok' } })
+    }
+    return route.fallback()
+  })
+  return deleted
+}
+
+test('clearing history supports cancellation and retains unfinished tasks', async ({ page }) => {
+  const deleted = await mockHistory(page)
+  await page.goto('/recent')
+  const clear = page.getByRole('button', { name: '清空历史任务', exact: true })
+  await expect(page.locator('.cv-task-row')).toHaveCount(4)
+  page.once('dialog', dialog => dialog.dismiss())
+  await clear.click()
+  expect(deleted).toHaveLength(0)
+  await expect(page.locator('.cv-task-row')).toHaveCount(4)
+  page.once('dialog', dialog => dialog.accept())
+  await clear.click()
+  await expect(page.getByRole('status')).toContainText('已清空 2 条历史任务')
+  await expect(page.locator('.cv-task-row')).toHaveCount(2)
+  expect(deleted.sort()).toEqual(['history-0', 'history-1'])
+  await page.reload()
+  await expect(page.locator('.cv-task-row')).toHaveCount(2)
+})
+
+test('clearing history visits all pages and allows retry after partial failure', async ({ page }) => {
+  const deleted = await mockHistory(page, 201, true)
+  await page.goto('/recent')
+  await expect(page.locator('.cv-task-row')).toHaveCount(50)
+  page.once('dialog', dialog => dialog.accept())
+  await page.getByRole('button', { name: '清空历史任务', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('已清空 200 条历史任务。1 条未能删除', { timeout: 30000 })
+  await expect(page.locator('.cv-task-row')).toHaveCount(3)
+  expect(deleted).toHaveLength(200)
+  expect(deleted).not.toContain('active-task')
+  expect(deleted).not.toContain('queued-task')
+  page.once('dialog', dialog => dialog.accept())
+  await page.getByRole('button', { name: '清空历史任务', exact: true }).click()
+  await expect(page.getByRole('status')).toContainText('已清空 1 条历史任务。')
+  await expect(page.locator('.cv-task-row')).toHaveCount(2)
+})

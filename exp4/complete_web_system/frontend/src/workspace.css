@@ -92,3 +92,8 @@
 .cv-video-controls { position:relative; }
 .cv-voice-toggle { flex:none; border:1px solid #544350; border-radius:5px; padding:3px 6px; background:#272128; color:#eee; font:inherit; font-size:12px; }
 .cv-voice-status { position:absolute; bottom:100%; right:6px; padding:4px 8px; border-radius:5px; color:white; background:#211b22; font-size:12px; }
+
+.cv-recent-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+.cv-recent-heading h1 { margin:0; }
+.cv-clear-history { color:#ffa7bf; border-color:#754357; }
+.cv-page-heading .cv-history-notice { color:#efb2ca; }

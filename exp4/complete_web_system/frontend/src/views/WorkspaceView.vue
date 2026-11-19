@@ -48,6 +48,9 @@ type StripItem = { start_ms: number; end_ms: number; text: string; label: string
 const route = useRoute()
 const router = useRouter()
 const tasks = ref<TaskListItem[]>([])
+const clearingHistory = ref(false)
+const historyNotice = ref('')
+const clearProgress = ref('')
 const task = ref<TaskStatus | null>(null)
 const events = ref<CommentaryEvent[]>([])
 const narration = ref<TaskNarration | null>(null)
@@ -516,8 +519,41 @@ async function regenerateNarration(): Promise<void> {
   }
 }
 async function removeTask(id: string): Promise<void> {
+  if (clearingHistory.value) return
+  historyNotice.value = ''
   if (!window.confirm('确定删除这条已完成的任务吗？')) return
   try { await deleteTask(id); await reloadTasks() } catch (error) { pageError.value = error instanceof Error ? error.message : '删除失败' }
+}
+async function clearHistory(): Promise<void> {
+  if (clearingHistory.value || !tasks.value.length) return
+  if (!window.confirm('确定清空所有已完成和失败的历史任务吗？相关视频、分析结果及对话也会删除。排队和分析中的任务会保留。')) return
+  clearingHistory.value = true
+  pageError.value = ''
+  historyNotice.value = ''
+  clearProgress.value = '正在读取任务…'
+  let deleted = 0
+  let failed = 0
+  try {
+    // Collect every page before deleting so shifting offsets cannot skip records.
+    const history = new Map<string, TaskListItem>()
+    for (let offset = 0; ; offset += 200) {
+      const rows = await listTasks(200, offset)
+      rows.forEach(item => history.set(item.task_id, item))
+      if (rows.length < 200) break
+    }
+    const finished = [...history.values()].filter(item => item.status === 'ready' || item.status === 'failed')
+    for (const [index, item] of finished.entries()) {
+      clearProgress.value = `正在清空 ${index + 1}/${finished.length}…`
+      try { await deleteTask(item.task_id); deleted++ } catch { failed++ }
+    }
+    historyNotice.value = finished.length ? `已清空 ${deleted} 条历史任务。${failed ? `${failed} 条未能删除，可重试。` : ''}` : '没有可清空的历史任务。'
+    await reloadTasks()
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : '清空失败，请重试'
+  } finally {
+    clearingHistory.value = false
+    clearProgress.value = ''
+  }
 }
 function onResize(): void { drawBoxes() }
 watch(() => route.fullPath, () => { void openRoute() }, { immediate: true })
@@ -542,7 +578,7 @@ onBeforeUnmount(() => { clearFile(); stopTimers(); window.removeEventListener('r
 
     <main v-else-if="view === 'analyzing'" class="cv-waiting"><div class="cv-wait-icon">◌</div><p class="cv-kicker">VIDEO ANALYSIS IN PROGRESS</p><h1>{{ task?.status === 'failed' ? '分析失败' : '正在分析中，请稍等' }}</h1><p>{{ task?.status === 'failed' ? (task.error || pageError) : stageText }}</p><div class="cv-progress"><i :style="{ width: `${progress}%` }"></i></div><div class="cv-progress-caption"><span>任务 {{ currentTaskId.slice(0, 8) }}</span><strong>{{ progress }}%</strong></div><p v-if="task?.status !== 'failed'" class="cv-tip">{{ basketballTips[tipIndex] }}</p><div class="cv-stages"><span v-for="(name, index) in stageNames" :key="name" :class="{ done: index < stageIndex, now: index === stageIndex }">{{ name }}</span></div><div class="cv-wait-actions"><button class="cv-btn cv-outline" @click="router.push('/')">返回主页</button><button class="cv-btn cv-outline" @click="router.push('/recent')">查看最近任务</button></div><small>离开此页不会中断后台分析，稍后可从最近任务返回。</small></main>
 
-    <main v-else-if="view === 'recent'" class="cv-recent"><div class="cv-page-heading"><p class="cv-kicker">YOUR ANALYSIS HISTORY</p><h1>最近任务</h1><p>按创建时间排序，打开任务可继续查看视频、事件、解说和对话。</p></div><div class="cv-recent-list"><div v-if="!tasks.length" class="cv-empty-small">还没有任务。<button class="cv-btn cv-primary" @click="chooseVideo">导入视频</button></div><article v-for="item in tasks" :key="item.task_id" class="cv-task-row"><button class="cv-task-main" @click="router.push(item.status === 'ready' ? `/tasks/${item.task_id}` : `/analyzing/${item.task_id}`)"><img v-if="item.status === 'ready'" :src="getTaskFrameUrl(item.task_id, 0)" alt="视频首帧"><span v-else class="cv-task-icon">▣</span><span><b>{{ item.video_name }}</b><small>{{ item.task_id.slice(0, 8) }} · {{ timeLabel(item.created_at) }}</small></span></button><div class="cv-task-side"><span class="cv-task-status" :class="item.status">{{ stateLabel(item.status) }}<template v-if="item.status === 'running'"> · {{ Math.round(item.progress * 100) }}%</template></span><button class="cv-btn cv-outline" @click="router.push(item.status === 'ready' ? `/tasks/${item.task_id}?chat=history` : `/analyzing/${item.task_id}`)">{{ item.status === 'ready' ? '对话' : '查看进度' }}</button><button v-if="item.status === 'ready' || item.status === 'failed'" class="cv-icon-btn" aria-label="删除任务" @click="removeTask(item.task_id)">×</button></div></article></div></main>
+    <main v-else-if="view === 'recent'" class="cv-recent"><div class="cv-page-heading"><p class="cv-kicker">YOUR ANALYSIS HISTORY</p><div class="cv-recent-heading"><h1>最近任务</h1><button class="cv-btn cv-outline cv-clear-history" :disabled="clearingHistory || !tasks.length" @click="clearHistory">{{ clearingHistory ? '正在清空…' : '清空历史任务' }}</button></div><p>按创建时间排序，打开任务可继续查看视频、事件、解说和对话。清空时保留排队和分析中的任务。</p><p v-if="clearingHistory || historyNotice" class="cv-history-notice" role="status" aria-live="polite">{{ clearProgress || historyNotice }}</p></div><div class="cv-recent-list"><div v-if="!tasks.length" class="cv-empty-small">还没有任务。<button class="cv-btn cv-primary" @click="chooseVideo">导入视频</button></div><article v-for="item in tasks" :key="item.task_id" class="cv-task-row"><button class="cv-task-main" @click="router.push(item.status === 'ready' ? `/tasks/${item.task_id}` : `/analyzing/${item.task_id}`)"><img v-if="item.status === 'ready'" :src="getTaskFrameUrl(item.task_id, 0)" alt="视频首帧"><span v-else class="cv-task-icon">▣</span><span><b>{{ item.video_name }}</b><small>{{ item.task_id.slice(0, 8) }} · {{ timeLabel(item.created_at) }}</small></span></button><div class="cv-task-side"><span class="cv-task-status" :class="item.status">{{ stateLabel(item.status) }}<template v-if="item.status === 'running'"> · {{ Math.round(item.progress * 100) }}%</template></span><button class="cv-btn cv-outline" @click="router.push(item.status === 'ready' ? `/tasks/${item.task_id}?chat=history` : `/analyzing/${item.task_id}`)">{{ item.status === 'ready' ? '对话' : '查看进度' }}</button><button v-if="item.status === 'ready' || item.status === 'failed'" class="cv-icon-btn" :disabled="clearingHistory" aria-label="删除任务" @click="removeTask(item.task_id)">×</button></div></article></div></main>
 
     <main v-else class="cv-console">
       <nav class="cv-console-top" aria-label="工作台导航"><RouterLink to="/" class="cv-brand"><span class="cv-ball">◉</span><b>COURTVISION</b></RouterLink><RouterLink to="/" class="cv-btn cv-outline cv-return-home">← 返回主页</RouterLink><div class="cv-console-actions"><button class="cv-btn cv-outline" @click="router.push('/recent')">最近任务 <span class="cv-count">{{ tasks.length }}</span></button><button class="cv-btn cv-outline" :disabled="!narration?.text" @click="videoElement?.pause(); audioError = ''; exporting = true; exportDialog?.showModal()">导出解说</button><button class="cv-btn cv-primary" @click="chooseVideo">重新分析</button></div></nav>

@@ -255,9 +255,9 @@ export async function retryNarration(taskId: string): Promise<{ task_id: string;
   }
 }
 
-export async function listTasks(): Promise<TaskListItem[]> {
+export async function listTasks(limit = 50, offset = 0): Promise<TaskListItem[]> {
   try {
-    return unwrap(await http.get<ApiEnvelope<TaskListItem[]>>('/tasks'))
+    return unwrap(await http.get<ApiEnvelope<TaskListItem[]>>('/tasks', { params: { limit, offset } }))
   } catch (error) {
     throw apiError(error)
   }
