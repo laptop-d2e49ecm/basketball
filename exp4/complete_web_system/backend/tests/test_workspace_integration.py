@@ -69,3 +69,22 @@ def test_upload_creates_new_task_directory(monkeypatch, tmp_path):
     assert saved[0]["task_id"] == task_id
     assert Path(saved[0]["video_path"]) == tmp_path / task_id / "source.mp4"
     assert Path(saved[0]["video_path"]).read_bytes() == b"video"
+
+
+def test_tool_trace_matches_parallel_results_by_call_id():
+    calls = SimpleNamespace(type="ai", tool_calls=[
+        {"id": "first", "name": "player_detect", "args": {"image_path": "frame.jpg"}},
+        {"id": "second", "name": "commentary_classify", "args": {"text": "传球"}},
+        {"id": "missing", "name": "retrieve_commentary", "args": {"query": "传球"}},
+    ])
+    trace = agent._trace_from_messages([
+        calls,
+        SimpleNamespace(type="tool", tool_call_id="second", content="工具调用失败：分类模型未就绪"),
+        SimpleNamespace(type="tool", tool_call_id="first", content="检测到 8 名球员，推理耗时 12ms"),
+    ])
+    assert trace[0]["result_summary"].startswith("检测到 8 名球员")
+    assert trace[0]["status"] == "ok"
+    assert trace[0]["elapsed_ms"] == 12
+    assert trace[1]["status"] == "error"
+    assert trace[2]["status"] == "error"
+    assert trace[2]["result_summary"] == "工具未返回结果"

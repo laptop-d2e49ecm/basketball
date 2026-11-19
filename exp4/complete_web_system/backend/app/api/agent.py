@@ -79,13 +79,22 @@ def _history_to_messages(history: list[dict[str, Any]]) -> list[dict[str, str]]:
 def _trace_from_messages(messages: list[Any]) -> list[dict[str, Any]]:
     """从 langgraph 结果消息提取工具调用轨迹（契约第 3 节 tool_calls 字段）。"""
     calls: list[dict[str, Any]] = []
+    call_ids: list[str | None] = []
     for msg in messages:
         if getattr(msg, "type", "") == "ai" and getattr(msg, "tool_calls", None):
             for call in msg.tool_calls:
                 calls.append({"tool": call.get("name", ""), "args": call.get("args", {})})
-    tool_results = [str(m.content) for m in messages if getattr(m, "type", "") == "tool"]
-    for item, content in zip(calls, tool_results):
-        item["status"] = "error" if content.startswith("工具调用失败") else "ok"
+                call_ids.append(call.get("id"))
+    tool_results = [m for m in messages if getattr(m, "type", "") == "tool"]
+    has_result_ids = any(getattr(m, "tool_call_id", None) for m in tool_results)
+    for index, (item, call_id) in enumerate(zip(calls, call_ids)):
+        # Parallel tool results may arrive in a different order from the calls.
+        if has_result_ids and call_id:
+            result = next((m for m in tool_results if getattr(m, "tool_call_id", None) == call_id), None)
+        else:
+            result = tool_results[index] if index < len(tool_results) else None
+        content = str(result.content) if result is not None else "工具未返回结果"
+        item["status"] = "error" if result is None or content.startswith("工具调用失败") else "ok"
         item["result_summary"] = content[:200]
         matched = _MS_PATTERN.search(content)
         item["elapsed_ms"] = float(matched.group(1)) if matched else None

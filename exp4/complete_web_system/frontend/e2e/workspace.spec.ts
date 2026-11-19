@@ -315,3 +315,42 @@ test('clearing history visits all pages and allows retry after partial failure',
   await expect(page.getByRole('status')).toContainText('已清空 1 条历史任务。')
   await expect(page.locator('.cv-task-row')).toHaveCount(2)
 })
+
+
+test('tool traces show readable names, arguments, results and restored history', async ({ page }) => {
+  const backend = await mockBackend(page)
+  backend.finish()
+  const calls = [
+    { tool: 'query_video_events', args: { task_id: 'video-test', offset: 20, limit: 20 }, status: 'ok', result_summary: '已读取第 21 至 40 条事件', elapsed_ms: null },
+    { tool: 'commentary_classify', args: { text: '球员送出一记传球' }, status: 'error', result_summary: '工具调用失败：分类模型未就绪', elapsed_ms: 12 },
+  ]
+  const session = { session_id: 'trace-session', task_id: task.task_id, title: '工具调用示例', message_count: 2, updated_at: task.created_at, created_at: task.created_at }
+  await page.route('**/agent/chat', route => route.fulfill({ json: { code: 0, result: {
+    session_id: session.session_id, task_id: task.task_id, agent: '已查询比赛事件，文本分类暂不可用。', tool_calls: calls,
+  }, msg: 'ok' } }))
+  await page.route('**/agent/sessions?**', route => route.fulfill({ json: { code: 0, result: [session], msg: 'ok' } }))
+  await page.route('**/agent/sessions/trace-session', route => route.fulfill({ json: { code: 0, result: {
+    ...session, history: [{ role: 'agent', content: '已查询比赛事件，文本分类暂不可用。', tool_calls: calls }],
+  }, msg: 'ok' } }))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/tasks/video-test')
+  await page.locator('.cv-tool-guide summary').click()
+  await expect(page.locator('.cv-tool-guide li')).toHaveCount(5)
+  await expect(page.locator('.cv-tool-guide')).toContainText('检索真人解说')
+  await page.getByRole('textbox', { name: '向 AI 提问' }).fill('查询事件并分类这句解说')
+  await page.getByRole('button', { name: '发送' }).click()
+  const trace = page.locator('.cv-tool-trace').last()
+  await trace.locator('summary').click()
+  await expect(trace).toContainText('查询视频事件')
+  await expect(trace).toContainText('跳过条数')
+  await expect(trace).toContainText('已读取第 21 至 40 条事件')
+  await expect(trace).toContainText('分类模型未就绪')
+  await expect(trace).toContainText('失败')
+  await expect(trace).toContainText('12 ms')
+  await expect(trace.locator('.cv-tool-call').first()).not.toContainText('耗时')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.getByRole('button', { name: '对话历史', exact: true }).click()
+  await page.getByRole('button', { name: /工具调用示例/ }).click()
+  await page.locator('.cv-tool-trace summary').click()
+  await expect(page.locator('.cv-tool-trace')).toContainText('已读取第 21 至 40 条事件')
+})
