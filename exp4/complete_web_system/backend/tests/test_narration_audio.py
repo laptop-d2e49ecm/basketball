@@ -81,6 +81,25 @@ def test_synthesize_uses_sections_and_reuses_cache(tmp_path: Path, monkeypatch):
     assert cached.read_bytes() == b"ID3-audio-v2"
 
 
+def test_emphatic_segment_trims_each_prosody_part_before_joining(tmp_path, monkeypatch):
+    path = tmp_path / "narration.json"
+    path.write_text(json.dumps({"sections": [{"text": "球先护住。往里一步！"}]}), encoding="utf-8")
+    calls = _fake_edge_tts(monkeypatch, payload=b"raw-voice")
+    trimmed = []
+
+    def trim(data):
+        trimmed.append(data)
+        return b"trimmed"
+
+    monkeypatch.setattr(tts, "_trim_segment_silence", trim)
+    audio = tts.synthesize_narration(path, 0)
+    assert len(calls) == 2
+    assert trimmed == [b"raw-voice", b"raw-voice"]
+    assert audio.read_bytes() == b"trimmedtrimmed"
+    tts.synthesize_narration(path, 0)
+    assert len(calls) == 2
+
+
 def test_synthesize_regenerates_when_narration_updated(tmp_path: Path, monkeypatch):
     narration = _write_narration(tmp_path)
     _fake_edge_tts(monkeypatch, payload=b"old")

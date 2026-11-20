@@ -111,8 +111,11 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
         rate = os.getenv("BASKETBALL_TTS_RATE", DEFAULT_RATE)
         climax_rate = os.getenv("BASKETBALL_TTS_CLIMAX_RATE", DEFAULT_CLIMAX_RATE)
         climax_pitch = os.getenv("BASKETBALL_TTS_CLIMAX_PITCH", DEFAULT_CLIMAX_PITCH)
+        chunks = _prosody_chunks(text)
+        mixed_segment = section is not None and len(chunks) > 1
         profile_path = audio_path.with_suffix(".voice.json")
-        profile = json.dumps(["edge-segment-trim-v2" if section is not None else "edge-new-v1", voice, rate, climax_rate, climax_pitch, hashlib.sha256(text.encode("utf-8")).hexdigest()])
+        version = "edge-segment-prosody-trim-v3" if mixed_segment else "edge-segment-trim-v2" if section is not None else "edge-new-v1"
+        profile = json.dumps([version, voice, rate, climax_rate, climax_pitch, hashlib.sha256(text.encode("utf-8")).hexdigest()])
         if (audio_path.is_file() and profile_path.is_file()
                 and profile_path.read_text(encoding="utf-8") == profile
                 and audio_path.stat().st_mtime_ns >= narration_path.stat().st_mtime_ns):
@@ -123,7 +126,6 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
             import edge_tts
         except ImportError as exc:  # 依赖未装不应让接口 500，交给上层转 503
             raise RuntimeError("语音合成依赖未安装：请执行 pip install edge-tts 后重试") from exc
-        chunks = _prosody_chunks(text)
         proxy = _speech_proxy()
 
         def _run() -> bytes:
@@ -145,6 +147,8 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
                             data.extend(piece["data"])
                     if len(data) == start:
                         raise RuntimeError("部分解说未返回语音，请稍后重试")
+                    if mixed_segment:
+                        data[start:] = _trim_segment_silence(bytes(data[start:]))
                 return bytes(data)
 
             async def _bounded() -> bytes:
@@ -162,7 +166,7 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
                 time.sleep(_RETRY_DELAY)
         if not data:
             raise RuntimeError("语音合成返回空音频，请检查网络后重试")
-        if section is not None:
+        if section is not None and not mixed_segment:
             data = _trim_segment_silence(data)
         temporary = audio_path.with_suffix(".mp3.tmp")
         temporary.write_bytes(data)

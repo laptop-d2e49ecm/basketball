@@ -49,8 +49,30 @@ def test_visual_commentary_uses_actual_frames_at_each_cue(monkeypatch, tmp_path)
     assert result["sections"][-1]["end_ms"] == 13040
     assert [s["event_count"] for s in result["sections"]] == [0, 0, 1, 1, 0]
     assert captured == [0, 500, 3000, 3500, 6000, 6500, 9000, 9500, 12000, 12500]
-    assert len(calls) == 3
+    assert len(calls) == 4
     assert all(sum(item["type"] == "image_url" for item in call) <= 4 for call in calls)
+
+
+def test_spoken_rewrite_keeps_time_and_rejects_new_actions():
+    facts = [
+        {"start_ms": 0, "text": "绿衣持球推进，白衣紧跟防守。"},
+        {"start_ms": 3000, "text": "绿衣右侧突破，白衣紧跟防守。"},
+        {"start_ms": 6000, "text": "白衣33号弧顶护球。"},
+    ]
+
+    class Model:
+        def invoke(self, _):
+            return SimpleNamespace(content=json.dumps({"sections": [
+                {"start_ms": 0, "text": "绿衣推反击！白衣回追。"},
+                {"start_ms": 3000, "text": "往里这一步！白衣跟得很紧。"},
+                {"start_ms": 6000, "text": "白衣26号起手投篮！"},
+            ]}))
+
+    result = visual.polish_sections(Model(), facts)
+    assert [row["start_ms"] for row in result] == [0, 3000, 6000]
+    assert result[0]["text"] == facts[0]["text"]  # 推进 cannot become 反击.
+    assert result[1]["text"] == "往里这一步！白衣跟得很紧。"
+    assert result[2]["text"] == facts[2]["text"]  # No new jersey number or shot.
 
 
 @pytest.mark.parametrize("rows", [
