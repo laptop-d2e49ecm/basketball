@@ -5,7 +5,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 import subprocess
 import threading
 import time
@@ -16,13 +15,9 @@ from pathlib import Path
 logger = logging.getLogger("basketball-tts")
 
 # 神经网络语音（edge-tts，免费无 key）。音色/语速可用 .env 覆盖。
-# 云健是微软官方的体育解说男声；零成本档用「按句动态韵律」制造激情：
-# 含「！」的高潮句加速抬调，平铺句用基础语速，避免整场一个调门的"平静朗读"。
+# 全场使用同一组声线参数，标点不再触发额外抬调或加速。
 DEFAULT_VOICE = "zh-CN-YunjianNeural"
 DEFAULT_RATE = "+10%"
-DEFAULT_CLIMAX_RATE = "+35%"
-DEFAULT_CLIMAX_PITCH = "+25Hz"
-_SENTENCE_SPLIT = re.compile(r"(?<=[。！？!?；;])\s*")
 _SYNTH_LOCKS = [threading.Lock() for _ in range(64)]
 _SYNTH_CAPACITY = threading.BoundedSemaphore(3)
 _REQUEST_TIMEOUT = 90
@@ -78,22 +73,6 @@ def narration_text(narration_path: Path) -> str:
     return "\n".join(sections) or str(result.get("text", "")).strip()
 
 
-def _prosody_chunks(text: str) -> list[tuple[str, bool]]:
-    """按句切分并标注是否高潮句；相邻同风格句子合并成块，控制合成请求数。
-
-    与 .new 一致，仅感叹句使用加速、抬调参数。
-    """
-    sentences = [s for s in _SENTENCE_SPLIT.split(text) if s.strip()]
-    chunks: list[tuple[str, bool]] = []
-    for sentence in sentences:
-        climax = "！" in sentence or "!" in sentence
-        if chunks and chunks[-1][1] == climax:
-            chunks[-1] = (chunks[-1][0] + sentence, climax)
-        else:
-            chunks.append((sentence, climax))
-    return chunks
-
-
 def synthesize_narration(narration_path: Path, section: int | None = None) -> Path:
     """把整场解说稿合成为 MP3，与解说稿同目录缓存；解说稿更新后自动重合成。"""
     if section is None:
@@ -109,13 +88,9 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
     with _SYNTH_LOCKS[lock_index], _SYNTH_CAPACITY:
         voice = os.getenv("BASKETBALL_TTS_VOICE", DEFAULT_VOICE)
         rate = os.getenv("BASKETBALL_TTS_RATE", DEFAULT_RATE)
-        climax_rate = os.getenv("BASKETBALL_TTS_CLIMAX_RATE", DEFAULT_CLIMAX_RATE)
-        climax_pitch = os.getenv("BASKETBALL_TTS_CLIMAX_PITCH", DEFAULT_CLIMAX_PITCH)
-        chunks = _prosody_chunks(text)
-        mixed_segment = section is not None and len(chunks) > 1
         profile_path = audio_path.with_suffix(".voice.json")
-        version = "edge-segment-prosody-trim-v3" if mixed_segment else "edge-segment-trim-v2" if section is not None else "edge-new-v1"
-        profile = json.dumps([version, voice, rate, climax_rate, climax_pitch, hashlib.sha256(text.encode("utf-8")).hexdigest()])
+        version = "edge-uniform-segment-v4" if section is not None else "edge-uniform-full-v4"
+        profile = json.dumps([version, voice, rate, "+0Hz", hashlib.sha256(text.encode("utf-8")).hexdigest()])
         if (audio_path.is_file() and profile_path.is_file()
                 and profile_path.read_text(encoding="utf-8") == profile
                 and audio_path.stat().st_mtime_ns >= narration_path.stat().st_mtime_ns):
@@ -131,24 +106,13 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
         def _run() -> bytes:
             async def _collect() -> bytes:
                 data = bytearray()
-                for chunk, climax in chunks:
-                    communicate = edge_tts.Communicate(
-                        chunk,
-                        voice,
-                        rate=climax_rate if climax else rate,
-                        pitch=climax_pitch if climax else "+0Hz",
-                        proxy=proxy,
-                        connect_timeout=8,
-                        receive_timeout=20,
-                    )
-                    start = len(data)
-                    async for piece in communicate.stream():
-                        if piece["type"] == "audio":
-                            data.extend(piece["data"])
-                    if len(data) == start:
-                        raise RuntimeError("部分解说未返回语音，请稍后重试")
-                    if mixed_segment:
-                        data[start:] = _trim_segment_silence(bytes(data[start:]))
+                communicate = edge_tts.Communicate(
+                    text, voice, rate=rate, pitch="+0Hz", proxy=proxy,
+                    connect_timeout=8, receive_timeout=20,
+                )
+                async for piece in communicate.stream():
+                    if piece["type"] == "audio":
+                        data.extend(piece["data"])
                 return bytes(data)
 
             async def _bounded() -> bytes:
@@ -166,14 +130,13 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
                 time.sleep(_RETRY_DELAY)
         if not data:
             raise RuntimeError("语音合成返回空音频，请检查网络后重试")
-        if section is not None and not mixed_segment:
+        if section is not None:
             data = _trim_segment_silence(data)
         temporary = audio_path.with_suffix(".mp3.tmp")
         temporary.write_bytes(data)
         temporary.replace(audio_path)
         profile_path.write_text(profile, encoding="utf-8")
         logger.info(
-            "整场解说语音已合成：%s (%d bytes, %d 块/高潮 %d)",
-            audio_path.name, len(data), len(chunks), sum(1 for _, c in chunks if c),
+            "统一声线语音已合成：%s (%d bytes)", audio_path.name, len(data),
         )
         return audio_path

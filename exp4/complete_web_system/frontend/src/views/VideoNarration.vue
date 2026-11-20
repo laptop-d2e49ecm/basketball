@@ -97,11 +97,11 @@ watch(() => [props.video, props.cues, props.url, props.revision, props.segmented
   synchronize(true)
   clean(() => events.forEach(type => video.removeEventListener(type, update)))
 }, { immediate: true })
-watch(() => [props.video, enabled.value, props.cues.length > 0, blocked.value] as const, ([video, on, available, isBlocked], _, clean) => {
-  if (!video || !on || !available || isBlocked) return
-  const original = video.volume
-  video.volume = original * .25
-  clean(() => { video.volume = original })
+watch(() => [props.video, enabled.value, props.cues.length > 0] as const, ([video, on, available], _, clean) => {
+  if (!video || !on || !available) return
+  const original = video.muted
+  video.muted = true
+  clean(() => { video.muted = original })
 }, { immediate: true })
 onBeforeUnmount(reset)
 </script>

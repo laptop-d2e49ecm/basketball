@@ -86,7 +86,7 @@ def test_score_and_scene_evidence():
     assert "篮下" in unsupported("球员在篮下。", [], None)
 
 
-def test_dynamic_mp3_settings_and_cache(tmp_path, monkeypatch):
+def test_uniform_mp3_settings_and_cache(tmp_path, monkeypatch):
     import sys
     from app.tts import synthesize_narration
 
@@ -105,13 +105,17 @@ def test_dynamic_mp3_settings_and_cache(tmp_path, monkeypatch):
     path = tmp_path / "narration.json"
     path.write_text(json.dumps({"text": "双方落位。精彩的封盖！"}), encoding="utf-8")
     audio = synthesize_narration(path)
-    assert audio.read_bytes() == b"partpart"
-    assert calls == [("+10%", "+0Hz"), ("+35%", "+25Hz")]
+    assert audio.read_bytes() == b"part"
+    assert calls == [("+10%", "+0Hz")]
     synthesize_narration(path)
-    assert len(calls) == 2
+    assert len(calls) == 1
     monkeypatch.setenv("BASKETBALL_TTS_CLIMAX_RATE", "+28%")
+    monkeypatch.setenv("BASKETBALL_TTS_CLIMAX_PITCH", "+40Hz")
     synthesize_narration(path)
-    assert calls[-1] == ("+28%", "+25Hz")
+    assert len(calls) == 1
+    monkeypatch.setenv("BASKETBALL_TTS_RATE", "+12%")
+    synthesize_narration(path)
+    assert calls[-1] == ("+12%", "+0Hz")
 
 
 def test_narration_budget_covers_video_tail_and_contiguous_intervals(tmp_path):

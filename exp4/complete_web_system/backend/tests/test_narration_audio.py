@@ -81,7 +81,7 @@ def test_synthesize_uses_sections_and_reuses_cache(tmp_path: Path, monkeypatch):
     assert cached.read_bytes() == b"ID3-audio-v2"
 
 
-def test_emphatic_segment_trims_each_prosody_part_before_joining(tmp_path, monkeypatch):
+def test_emphatic_segment_uses_one_voice_and_one_trim(tmp_path, monkeypatch):
     path = tmp_path / "narration.json"
     path.write_text(json.dumps({"sections": [{"text": "球先护住。往里一步！"}]}), encoding="utf-8")
     calls = _fake_edge_tts(monkeypatch, payload=b"raw-voice")
@@ -93,11 +93,11 @@ def test_emphatic_segment_trims_each_prosody_part_before_joining(tmp_path, monke
 
     monkeypatch.setattr(tts, "_trim_segment_silence", trim)
     audio = tts.synthesize_narration(path, 0)
-    assert len(calls) == 2
-    assert trimmed == [b"raw-voice", b"raw-voice"]
-    assert audio.read_bytes() == b"trimmedtrimmed"
+    assert len(calls) == 1
+    assert trimmed == [b"raw-voice"]
+    assert audio.read_bytes() == b"trimmed"
     tts.synthesize_narration(path, 0)
-    assert len(calls) == 2
+    assert len(calls) == 1
 
 
 def test_synthesize_regenerates_when_narration_updated(tmp_path: Path, monkeypatch):
@@ -113,8 +113,8 @@ def test_synthesize_regenerates_when_narration_updated(tmp_path: Path, monkeypat
     assert tts.synthesize_narration(narration).read_bytes() == b"new"
 
 
-def test_synthesize_applies_climax_prosody(tmp_path: Path, monkeypatch):
-    """「！」高潮句加速抬调，平铺句用基础韵律；相邻同风格句子合并成一块。"""
+def test_synthesize_keeps_same_voice_rate_and_pitch_for_exclamations(tmp_path: Path, monkeypatch):
+    """Mixed punctuation must never select a second pitch or speaking rate."""
     narration = tmp_path / "narration.json"
     narration.write_text(
         json.dumps(
@@ -133,11 +133,12 @@ def test_synthesize_applies_climax_prosody(tmp_path: Path, monkeypatch):
     calls = _fake_edge_tts(monkeypatch, payload=b"chunk")
 
     audio = tts.synthesize_narration(narration)
-    assert audio.read_bytes() == b"chunkchunkchunk"
-    assert [c["rate"] for c in calls] == [tts.DEFAULT_RATE, tts.DEFAULT_CLIMAX_RATE, tts.DEFAULT_RATE]
+    assert audio.read_bytes() == b"chunk"
+    assert len(calls) == 1
+    assert calls[0]["voice"] == tts.DEFAULT_VOICE
+    assert calls[0]["rate"] == tts.DEFAULT_RATE
     assert calls[0]["pitch"] == "+0Hz"
-    assert calls[1]["pitch"] == tts.DEFAULT_CLIMAX_PITCH
-    assert calls[1]["text"] == "外线果断出手！球进了！"
+    assert "外线果断出手！球进了！" in calls[0]["text"]
 
 
 def test_audio_endpoint_serves_file_and_maps_errors(tmp_path: Path, monkeypatch):

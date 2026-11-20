@@ -237,6 +237,7 @@ test('one continuous commentary track plays without seeks or rate changes across
   const video = page.locator('.cv-video-stage video')
   await expect.poll(() => video.evaluate(el => (el as HTMLVideoElement).readyState)).toBeGreaterThan(1)
   await page.getByRole('button', { name: '播放', exact: true }).click()
+  expect(await video.evaluate(el => (el as HTMLVideoElement).muted)).toBe(true)
   // The continuous track contains the initial silence; captions still follow cue timestamps.
   await page.waitForTimeout(700)
   expect((await state()).some(a => !a.paused && a.src.includes('timeline=1'))).toBe(true)
@@ -291,6 +292,7 @@ test('one continuous commentary track plays without seeks or rate changes across
   await expect.poll(async () => (await state()).some(a => a.src.includes('timeline=1') && !a.paused && a.rate === 1)).toBe(true)
   await video.evaluate(el => { Object.defineProperty(el, 'ended', { configurable: true, value: false }) })
   await page.getByRole('button', { name: '关闭解说声音' }).click()
+  expect(await video.evaluate(el => (el as HTMLVideoElement).muted)).toBe(false)
   await expect.poll(async () => (await state()).every(a => a.paused)).toBe(true)
   await page.getByRole('button', { name: /^(播放|重播)$/ }).click()
   expect(await video.evaluate(el => (el as HTMLVideoElement).paused)).toBe(false)
