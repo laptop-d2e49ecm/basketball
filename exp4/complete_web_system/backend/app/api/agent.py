@@ -38,6 +38,7 @@ class AgentChatRequest(BaseModel):
     task_id: str | None = None
     message: str = Field(min_length=1, max_length=500)
     image_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    image_ids: list[str] = Field(default_factory=list, max_length=6)
 
 
 def _chat_image_path(task_id: str, image_id: str) -> Path:
@@ -128,14 +129,17 @@ def _history_to_messages(history: list[dict[str, Any]], task_id: str | None = No
     for item in history:
         role = "user" if item.get("role") == "user" else "assistant"
         content = str(item.get("content", ""))
-        image = item.get("image")
-        if role == "user" and task_id and isinstance(image, dict):
-            try:
-                path = _chat_image_path(task_id, str(image.get("id", "")))
-                if path.is_file():
-                    content += f"\n本轮附图的工具路径：{path}。图片问题请使用 player_detect 或 image_text_match。"
-            except (HTTPException, NotFoundError):
-                pass
+        images = item.get("images") or ([item["image"]] if item.get("image") else [])
+        if role == "user" and task_id:
+            for index, image in enumerate(images):
+                if not isinstance(image, dict):
+                    continue
+                try:
+                    path = _chat_image_path(task_id, str(image.get("id", "")))
+                    if path.is_file():
+                        content += f"\n附图{index + 1}的工具路径：{path}。图片问题请使用 player_detect 或 image_text_match。"
+                except (HTTPException, NotFoundError):
+                    pass
         if content:
             messages.append({"role": role, "content": content})
     return messages
@@ -207,13 +211,18 @@ def agent_chat(payload: AgentChatRequest, request: Request) -> ApiEnvelope[dict[
         session_id = agent_sessions.new_session(task_id)
         history = []
 
-    image = None
+    images = []
     image_context = ""
-    if payload.image_id:
+    image_ids = list(dict.fromkeys(payload.image_ids + ([payload.image_id] if payload.image_id else [])))
+    if len(image_ids) > 6:
+        raise HTTPException(status_code=400, detail="每次最多发送 6 张图片")
+    if image_ids:
         if not task_id:
             raise HTTPException(status_code=400, detail="图片需关联当前视频任务")
-        image = _image_record(task_id, payload.image_id)
-        image_context = f"\n用户附图的工具路径：{_chat_image_path(task_id, payload.image_id)}。询问图片人数时调用 player_detect，询问图文是否匹配时调用 image_text_match，image_path 使用此路径。不要将视频事件当成这张图片的检测结果。"
+        for index, image_id in enumerate(image_ids):
+            images.append(_image_record(task_id, image_id))
+            image_context += f"\n附图{index + 1}的工具路径：{_chat_image_path(task_id, image_id)}。"
+        image_context += "询问图片人数时调用 player_detect，询问图文是否匹配时调用 image_text_match，image_path 使用对应图片路径。多张图片应分别调用工具并逐张说明结果，不要将视频事件当成附图的检测结果。"
     agent = _get_agent(request)
     task_context = f"当前视频任务编号为 {task_id}。询问该视频事件时，先调用 query_video_events 并以查询结果为依据。\n" if task_id else ""
     messages = _history_to_messages(history, task_id) + [{"role": "user", "content": task_context + payload.message + image_context}]
@@ -240,7 +249,7 @@ def agent_chat(payload: AgentChatRequest, request: Request) -> ApiEnvelope[dict[
     agent_sessions.append_history(
         session_id,
         [
-            {"role": "user", "content": payload.message, **({"image": image} if image else {})},
+            {"role": "user", "content": payload.message, **({"images": images} if images else {}), **({"image": images[0]} if payload.image_id and len(images) == 1 else {})},
             {"role": "agent", "content": final, "tool_calls": trace},
         ],
     )

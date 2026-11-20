@@ -354,59 +354,66 @@ test('tool traces show readable names, arguments, results and restored history',
 })
 
 
-test('chat attaches uploaded images and selected video frames to tool questions', async ({ page }) => {
+test('chat plus selects multiple sidebar frames and only sends on explicit submit', async ({ page }) => {
   const backend = await mockBackend(page)
   backend.finish()
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=', 'base64')
   let uploads = 0
   const requests: Record<string, unknown>[] = []
-  const frameTimes: string[] = []
-  await page.route('**/frame?**', route => {
-    frameTimes.push(new URL(route.request().url()).searchParams.get('t_ms') || '')
-    return route.fulfill({ contentType: 'image/png', body: png })
-  })
+  await page.route('**/frame?**', route => route.fulfill({ contentType: 'image/png', body: png }))
   await page.route('**/agent/images', route => {
-    expect(route.request().postDataBuffer()?.toString()).toContain('video-test')
     uploads++
-    return route.fulfill({ json: { code: 0, result: { id: String(uploads).repeat(32), url: '/test-chat-image.png', name: `附图${uploads}` }, msg: 'ok' } })
+    return route.fulfill({ json: { code: 0, result: { id: String(uploads).repeat(32), url: '/test-chat-image.png', name: `画面${uploads}` }, msg: 'ok' } })
   })
   await page.route('**/test-chat-image.png', route => route.fulfill({ contentType: 'image/png', body: png }))
   await page.route('**/agent/chat', route => {
     requests.push(route.request().postDataJSON())
-    return route.fulfill({ json: { code: 0, result: { session_id: 'image-session', agent: '已调用图片工具', tool_calls: [
-      { tool: 'player_detect', args: { image_path: 'chat_images/test.jpg' }, status: 'ok', result_summary: '检测到球员', elapsed_ms: 1 },
-    ] }, msg: 'ok' } })
+    return route.fulfill({ json: { code: 0, result: { session_id: 'image-session', agent: '已分别检测两张画面', tool_calls: [] }, msg: 'ok' } })
   })
-  await page.route('**/agent/sessions?**', route => route.fulfill({ json: { code: 0, result: requests.length ? [{ session_id: 'image-session', title: '图片问答', message_count: 2, task_id: task.task_id, updated_at: task.created_at }] : [], msg: 'ok' } }))
+  await page.route('**/agent/sessions?**', route => route.fulfill({ json: { code: 0, result: requests.length ? [{ session_id: 'image-session', title: '多图问答', message_count: 2, task_id: task.task_id, updated_at: task.created_at }] : [], msg: 'ok' } }))
   await page.route('**/agent/sessions/image-session', route => route.fulfill({ json: { code: 0, result: { task_id: task.task_id, history: [
-    { role: 'user', content: '请检测图片人数', image: { id: '3'.repeat(32), url: '/test-chat-image.png' } },
-    { role: 'agent', content: '已检测球员' },
+    { role: 'user', content: '分别检测人数', images: ['2', '3'].map(n => ({ id: n.repeat(32), url: '/test-chat-image.png' })) },
+    { role: 'agent', content: '已检测两张图片' },
   ] }, msg: 'ok' } }))
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/tasks/video-test')
-  const input = page.getByLabel('选择聊天图片')
-  await input.setInputFiles({ name: 'court.png', mimeType: 'image/png', buffer: png })
-  await expect(page.getByAltText('待发送图片')).toBeVisible()
-  await page.getByRole('button', { name: '移除聊天图片' }).click()
-  await expect(page.getByAltText('待发送图片')).toHaveCount(0)
-  await input.setInputFiles({ name: 'court.png', mimeType: 'image/png', buffer: png })
-  await expect(page.getByAltText('待发送图片')).toBeVisible()
-  await page.getByRole('textbox', { name: '向 AI 提问' }).fill('这张图里有多少球员？')
+  await expect(page.getByRole('button', { name: '上传图片', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '选取视频帧', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '用于提问', exact: true })).toHaveCount(0)
+  const plus = page.getByRole('button', { name: '添加画面帧' })
+  await plus.click()
+  await page.getByRole('button', { name: '选择 00:00 画面', exact: true }).click()
+  await expect(page.locator('.cv-chat-image-preview')).toHaveCount(1)
+  await page.getByRole('button', { name: '选择 00:06 画面', exact: true }).click()
+  await expect(page.locator('.cv-chat-image-preview')).toHaveCount(2)
+  expect(requests).toHaveLength(0)
+  await page.getByRole('button', { name: '选择 00:00 画面', exact: true }).click()
+  expect(uploads).toBe(2)
+  await page.getByRole('button', { name: '移除画面 1' }).click()
+  await page.getByRole('button', { name: '选择 00:08 画面', exact: true }).click()
+  await expect(page.locator('.cv-chat-image-preview')).toHaveCount(2)
+  await page.getByRole('textbox', { name: '向 AI 提问' }).fill('请分别检测这两张图有多少球员')
+  expect(requests).toHaveLength(0)
   await page.getByRole('button', { name: '发送', exact: true }).click()
-  await expect(page.getByAltText('附图2')).toBeVisible()
-  expect(requests[0]?.image_id).toBe('2'.repeat(32))
-  await page.locator('.cv-video-stage video').evaluate(el => { (el as HTMLVideoElement).currentTime = 8; el.dispatchEvent(new Event('timeupdate')) })
-  await page.getByRole('button', { name: '选取视频帧', exact: true }).click()
-  await page.getByRole('button', { name: '使用当前画面（8 秒）' }).click()
-  await expect(page.getByAltText('待发送图片')).toBeVisible()
-  expect(frameTimes).toContain('8000')
-  await page.getByRole('button', { name: '发送', exact: true }).click()
-  await expect.poll(() => requests.length).toBe(2)
-  expect(requests[1]?.image_id).toBe('3'.repeat(32))
-  expect(requests[1]?.message).toBe('请检测这张图片中的球员人数。')
-  await expect(page.getByAltText('附图3')).toBeVisible()
+  await expect.poll(() => requests.length).toBe(1)
+  expect(requests[0]?.image_ids).toEqual(['2'.repeat(32), '3'.repeat(32)])
+  await expect(page.locator('.cv-chat-sent-image')).toHaveCount(2)
+  await expect(page.locator('.cv-chat-image-preview')).toHaveCount(0)
+  await expect(plus).toHaveAttribute('aria-pressed', 'false')
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   await page.getByRole('button', { name: '对话历史', exact: true }).click()
-  await page.getByRole('button', { name: /图片问答/ }).click()
-  await expect(page.getByAltText('问题附图')).toBeVisible()
+  await page.getByRole('button', { name: /多图问答/ }).click()
+  await expect(page.locator('.cv-chat-sent-image')).toHaveCount(2)
+})
+
+test('old backend image endpoint shows restart guidance for sidebar frame selection', async ({ page }) => {
+  const backend = await mockBackend(page)
+  backend.finish()
+  await page.route('**/frame?**', route => route.fulfill({ contentType: 'image/jpeg', body: Buffer.from('frame') }))
+  await page.route('**/agent/images', route => route.fulfill({ status: 404, json: { detail: 'Not Found' } }))
+  await page.goto('/tasks/video-test')
+  await page.getByRole('button', { name: '添加画面帧' }).click()
+  await page.getByRole('button', { name: /选择 .* 画面/ }).first().click()
+  await expect(page.getByRole('alert')).toContainText('当前后端尚未启用图片功能')
+  await expect(page.locator('.cv-chat-image-preview')).toHaveCount(0)
 })

@@ -373,14 +373,20 @@ export interface AgentToolCall {
   elapsed_ms: number | null
 }
 
-export interface ChatImage { id: string; url: string; name?: string }
+export interface ChatImage { id: string; url: string; name?: string; frame_ms?: number }
 
 export async function uploadChatImage(taskId: string, file: File): Promise<ChatImage> {
   const form = new FormData()
   form.append('task_id', taskId)
   form.append('file', file)
   try { return unwrap(await http.post<ApiEnvelope<ChatImage>>('/agent/images', form)) }
-  catch (error) { throw apiError(error) }
+  catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      const detail = error.response.data?.detail || error.response.data?.msg
+      if (!detail || detail === 'Not Found') throw new Error('当前后端尚未启用图片功能，请停止并重新启动项目后再试。')
+    }
+    throw apiError(error)
+  }
 }
 
 export interface AgentChatResult {
@@ -405,6 +411,7 @@ export class AgentApiError extends Error {
 export async function agentChat(payload: {
   message: string
   image_id?: string
+  image_ids?: string[]
   session_id?: string
   task_id?: string
 }): Promise<AgentChatResult> {
@@ -433,7 +440,7 @@ export interface AgentSessionListItem {
 }
 
 export interface AgentSession extends AgentSessionListItem {
-  history: Array<{ role: 'user' | 'agent'; content: string; tool_calls?: AgentToolCall[]; image?: ChatImage }>
+  history: Array<{ role: 'user' | 'agent'; content: string; tool_calls?: AgentToolCall[]; image?: ChatImage; images?: ChatImage[] }>
 }
 
 export async function listAgentSessions(taskId: string): Promise<AgentSessionListItem[]> {

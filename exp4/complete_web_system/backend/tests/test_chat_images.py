@@ -95,3 +95,24 @@ def test_image_multipart_http_contract(images):
         assert client.get(image["url"].replace("video-one", "video-two")).status_code == 404
         bad = client.post("/api/v1/agent/images", data={"task_id": "video-one"}, files={"file": ("bad.png", b"bad", "image/png")})
         assert bad.status_code == 400
+
+
+def test_multiple_images_are_passed_and_preserved_in_order(images, monkeypatch):
+    first, second = upload(), upload()
+    saved = []
+    class FakeAgent:
+        def invoke(self, payload):
+            text = payload["messages"][-1]["content"]
+            assert str(agent._chat_image_path("video-one", first["id"])) in text
+            assert str(agent._chat_image_path("video-one", second["id"])) in text
+            assert "分别调用工具" in text
+            return {"messages": [SimpleNamespace(type="ai", tool_calls=[], content="两张图片") ]}
+    monkeypatch.setattr(agent, "_get_agent", lambda _: FakeAgent())
+    monkeypatch.setattr(agent.agent_sessions, "new_session", lambda _: "session-many")
+    monkeypatch.setattr(agent.agent_sessions, "append_history", lambda _, rows: saved.extend(rows))
+    monkeypatch.setattr(agent, "_write_log", lambda *args: None)
+    monkeypatch.setattr(agent, "_provider_name", lambda: "test")
+    agent.agent_chat(agent.AgentChatRequest(task_id="video-one", message="分别检测人数", image_ids=[first["id"], second["id"]]), None)
+    assert [item["id"] for item in saved[0]["images"]] == [first["id"], second["id"]]
+    restored = agent._history_to_messages(saved, "video-one")[0]["content"]
+    assert first["id"] in restored and second["id"] in restored
