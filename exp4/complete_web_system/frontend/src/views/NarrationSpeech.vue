@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 
-const props = defineProps<{ url: string; text: string; rate: number }>()
+const props = defineProps<{ url: string; text: string }>()
 const state = ref<'idle' | 'loading' | 'playing'>('idle')
 const notice = ref('')
 let player: HTMLAudioElement | null = null
@@ -22,8 +22,6 @@ async function toggle() {
   notice.value = ''
   state.value = 'loading'
   const audio = new Audio(props.url)
-  audio.defaultPlaybackRate = props.rate
-  audio.playbackRate = props.rate
   player = audio
   audio.onended = stop
   try {
@@ -35,9 +33,6 @@ async function toggle() {
     notice.value = '在线语音暂不可用，请检查网络后重试'
   }
 }
-watch(() => props.rate, rate => {
-  if (player) { player.defaultPlaybackRate = rate; player.playbackRate = rate }
-}, { flush: 'sync' })
 onBeforeUnmount(stop)
 </script>
 

@@ -74,7 +74,8 @@ function synchronize(force: boolean) {
   // Let the final utterance finish at its current position after the picture ends.
   // Seeking it to the video's final timestamp would skip unread words.
   if (video.ended && index === props.cues.length - 1 && current) {
-    current.playbackRate = Math.min(16, video.playbackRate * segmentFit)
+    const rate = Math.min(16, segmentFit)
+    if (Math.abs(current.playbackRate - rate) > .0001) current.playbackRate = rate
     if (current.ended) { message.value = ''; return }
     message.value = '正在播完最后一句…'
     if (current.paused && !wantsPlay && !blocked.value) {
@@ -87,11 +88,12 @@ function synchronize(force: boolean) {
     return
   }
   const now = video.currentTime
-  let i = 0
+  let i = -1
   while (i + 1 < props.cues.length && props.cues[i + 1]!.start_ms <= now * 1000) i++
   if (i !== index) changeCue(i)
+  if (i < 0) return
   const cue = props.cues[i]!
-  const start = i === 0 ? 0 : cue.start_ms / 1000
+  const start = cue.start_ms / 1000
   const end = props.cues[i + 1]?.start_ms
   const span = Math.max(.1, end !== undefined ? end / 1000 - start : (video.duration || Infinity) - start)
   const offset = Math.max(0, now - start)
@@ -109,7 +111,8 @@ function synchronize(force: boolean) {
   const fit = Math.max(.8, audio.duration / span)
   segmentFit = fit
   const target = Math.min(audio.duration, offset * fit)
-  audio.playbackRate = Math.min(16, video.playbackRate * fit)
+  const rate = Math.min(16, fit)
+  if (Math.abs(audio.playbackRate - rate) > .0001) audio.playbackRate = rate
   if (force || Math.abs(audio.currentTime - target) > .35) audio.currentTime = target
   if (!shouldPlay || target >= audio.duration - .035 || wantsPlay || blocked.value) return
   wantsPlay = true
@@ -137,15 +140,26 @@ watch(() => [props.video, props.cues, props.url, props.revision, props.segmented
   reset()
   stalled = false
   if (!video) return
+  let frame = 0
+  function tick() {
+    frame = 0
+    if (video!.paused || video!.ended) return
+    synchronize(false)
+    frame = requestAnimationFrame(tick)
+  }
   function update(event: Event) {
     if (event.type === 'waiting' || event.type === 'seeking') stalled = true
     if (event.type === 'playing' || event.type === 'seeked') stalled = false
-    synchronize(event.type !== 'timeupdate')
+    synchronize(event.type === 'seeked' || event.type === 'loadedmetadata')
+    if (!frame && !video!.paused && !video!.ended) frame = requestAnimationFrame(tick)
   }
   const events = ['playing', 'play', 'pause', 'ended', 'waiting', 'seeking', 'seeked', 'timeupdate', 'ratechange', 'loadedmetadata']
   events.forEach(type => video.addEventListener(type, update))
   synchronize(true)
-  clean(() => events.forEach(type => video.removeEventListener(type, update)))
+  clean(() => {
+    cancelAnimationFrame(frame)
+    events.forEach(type => video.removeEventListener(type, update))
+  })
 }, { immediate: true })
 watch(() => [props.video, enabled.value, props.cues.length > 0, blocked.value] as const, ([video, on, available, isBlocked], _, clean) => {
   if (!video || !on || !available || isBlocked) return

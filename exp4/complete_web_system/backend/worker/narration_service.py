@@ -188,7 +188,19 @@ def run_task_narration(task_id: str, events_path: Path) -> dict[str, Any]:
     except Exception:  # noqa: BLE001 - 元数据读不到只影响注入，不影响解说
         logger.warning("读取任务元数据失败，本篇解说不注入对阵与比分：%s", task_id)
     try:
-        result = generate_narration(task_id, events_path, context=context)
+        result = None
+        from app.core.config import settings
+
+        source = events_path.parent / "source.mp4"
+        if settings.vision_caption_enabled and source.is_file():
+            try:
+                from worker.visual_narration import generate_visual_narration
+
+                result = generate_visual_narration(task_id, source, _events(events_path))
+            except Exception:  # A vision outage must not lose the analysis.
+                logger.exception("画面解说失败，回退带事件依据的解说：%s", task_id)
+        if result is None:
+            result = generate_narration(task_id, events_path, context=context)
     except Exception as exc:  # 外部模型故障不应使检测结果丢失
         logger.exception("整场 Agent 解说生成失败：%s", task_id)
         if "key 未配置" in str(exc):
@@ -207,5 +219,26 @@ def run_task_narration(task_id: str, events_path: Path) -> dict[str, Any]:
             "sections": [], "tool_calls": [], "text": "",
             "error": error,
         }
-    write_narration(events_path.parent / "narration.json", result)
+    narration_path = events_path.parent / "narration.json"
+    cached_audio: list[Path] = []
+    if result.get("source") == "vision" and result.get("sections"):
+        # Ready means the short passages can start immediately, rather than
+        # spending their entire picture interval waiting for online speech.
+        from concurrent.futures import ThreadPoolExecutor
+        from app.tts import synthesize_narration
+
+        write_narration(narration_path, {**result, "status": "running"})
+
+        def warm(section: int) -> Path | None:
+            try:
+                return synthesize_narration(narration_path, section)
+            except Exception:
+                logger.warning("分段语音准备失败，保留解说稿供播放时重试：%s/%s", task_id, section)
+                return None
+
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="narration-audio") as pool:
+            cached_audio = [path for path in pool.map(warm, range(len(result["sections"]))) if path]
+    write_narration(narration_path, result)
+    for audio in cached_audio:
+        audio.touch()  # Cache must be newer than the final ready JSON.
     return result

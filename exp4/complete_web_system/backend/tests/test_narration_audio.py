@@ -1,6 +1,11 @@
 import json
 import sys
 import types
+import math
+import struct
+import subprocess
+import wave
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -9,6 +14,29 @@ from fastapi import HTTPException
 
 from app import tts
 from app.api import tasks
+
+
+def test_segment_trim_removes_edge_silence_and_preserves_spoken_audio():
+    import imageio_ffmpeg
+
+    rate = 24000
+    buffer = BytesIO()
+    with wave.open(buffer, 'wb') as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(rate)
+        samples = [0] * (rate // 5)
+        samples += [round(6000 * math.sin(index * 2 * math.pi * 440 / rate)) for index in range(rate)]
+        samples += [0] * (rate * 4 // 5)
+        output.writeframes(struct.pack('<' + 'h' * len(samples), *samples))
+    exe = imageio_ffmpeg.get_ffmpeg_exe()
+    encoded = subprocess.run([exe, '-loglevel', 'error', '-f', 'wav', '-i', 'pipe:0', '-f', 'mp3', 'pipe:1'],
+        input=buffer.getvalue(), capture_output=True, check=True).stdout
+    trimmed = tts._trim_segment_silence(encoded)
+    decoded = subprocess.run([exe, '-loglevel', 'error', '-f', 'mp3', '-i', 'pipe:0', '-f', 's16le', 'pipe:1'],
+        input=trimmed, capture_output=True, check=True).stdout
+    seconds = len(decoded) / (rate * 2)
+    assert 1 <= seconds < 1.3
 
 
 def _fake_edge_tts(monkeypatch, payload: bytes = b"ID3-audio"):

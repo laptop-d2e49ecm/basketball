@@ -84,7 +84,6 @@
 .cv-report-tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .cv-report-tools .cv-btn { padding:4px 8px; }
 
-.cv-playback-rate { flex:none; color:#f5f0f4; background:#242128; border:1px solid #423741; border-radius:5px; padding:3px; font:inherit; font-size:12px; }
 .cv-strip-card { flex-basis:clamp(215px,23vw,335px); }
 .cv-strip-card span { display:block; overflow:visible; }
 @media(max-width:520px) { .cv-video-controls { gap:5px; padding-inline:6px; } }

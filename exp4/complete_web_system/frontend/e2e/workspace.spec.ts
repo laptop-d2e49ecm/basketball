@@ -168,8 +168,8 @@ test('playback follows narration sections without event details', async ({ page,
   await expect(page.getByText('音频待测试', { exact: true })).toHaveCount(0)
   const player = page.locator('.cv-video-stage video')
   await player.evaluate(el => { (el as HTMLVideoElement).currentTime = 4 })
-  await page.getByRole('combobox', { name: '视频倍速' }).selectOption('1.5')
-  expect(await player.evaluate(el => (el as HTMLVideoElement).playbackRate)).toBe(1.5)
+  await expect(page.getByRole('combobox', { name: '视频倍速' })).toHaveCount(0)
+  expect(await player.evaluate(el => (el as HTMLVideoElement).playbackRate)).toBe(1)
   expect(await player.evaluate(el => (el as HTMLVideoElement).currentTime)).toBe(4)
   await cards.last().click()
   await expect(cards.last()).toHaveClass(/active/)
@@ -181,7 +181,7 @@ test('playback follows narration sections without event details', async ({ page,
   }
 })
 
-test('commentary audio follows playback speed, pause, seek and mute', async ({ page }) => {
+test('commentary audio stays synchronized at normal speed after pause, seek and replay', async ({ page }) => {
   const backend = await mockBackend(page)
   backend.finish()
   function tone(seconds: number) {
@@ -208,7 +208,7 @@ test('commentary audio follows playback speed, pause, seek and mute', async ({ p
   await page.route('**/preview/status', route => route.fulfill({ json: { code: 0, result: { status: 'ready' } } }))
   await page.route('**/preview', mediaFile(tone(20)))
   await page.route('**/narration', route => route.fulfill({ json: { code: 0, result: { ...narration,
-    sections: [0, 10000].map(start_ms => ({ start_ms, text: '持球推进。' })) } } }))
+    sections: [2000, 10000].map(start_ms => ({ start_ms, text: '持球推进。' })) } } }))
   await page.route('**/narration/audio?**', mediaFile(tone(9)))
   await page.addInitScript(() => {
     const media: HTMLAudioElement[] = []
@@ -227,18 +227,34 @@ test('commentary audio follows playback speed, pause, seek and mute', async ({ p
   const video = page.locator('.cv-video-stage video')
   await expect.poll(() => video.evaluate(el => (el as HTMLVideoElement).readyState)).toBeGreaterThan(1)
   await page.getByRole('button', { name: '播放', exact: true }).click()
-  await expect.poll(async () => (await state()).some(a => !a.paused && a.time > 0)).toBe(true)
-  await expect.poll(async () => (await state()).some(a => !a.paused && Math.abs(a.rate - .9) < .01)).toBe(true)
-  const beforeFast = await video.evaluate(el => (el as HTMLVideoElement).currentTime)
-  await page.getByLabel('视频倍速').selectOption('2')
+  // The first passage must wait for its actual timestamp, matching the caption.
   await page.waitForTimeout(700)
-  expect(await video.evaluate(el => (el as HTMLVideoElement).currentTime) - beforeFast).toBeGreaterThan(1)
-  await expect.poll(async () => (await state()).some(a => !a.paused && Math.abs(a.rate - 1.8) < .01)).toBe(true)
+  expect((await state()).some(a => !a.paused)).toBe(false)
+  await expect(page.locator('.cv-subtitle')).toHaveCount(0)
+  await expect.poll(async () => (await state()).some(a => !a.paused && a.time > 0)).toBe(true)
+  await expect(page.locator('.cv-subtitle')).toContainText('持球推进。')
+  await expect.poll(async () => (await state()).some(a => !a.paused && Math.abs(a.rate - 1.125) < .01)).toBe(true)
+  await expect(page.getByLabel('视频倍速')).toHaveCount(0)
+  const before = await video.evaluate(el => (el as HTMLVideoElement).currentTime)
+  await page.waitForTimeout(1000)
+  const advanced = await video.evaluate(el => (el as HTMLVideoElement).currentTime) - before
+  expect(advanced).toBeGreaterThan(.6)
+  expect(advanced).toBeLessThan(1.5)
   await page.getByRole('button', { name: '暂停', exact: true }).click()
   await expect.poll(async () => (await state()).every(a => a.paused)).toBe(true)
   await video.evaluate(el => { (el as HTMLVideoElement).currentTime = 12 })
   await page.getByRole('button', { name: '播放', exact: true }).click()
-  await expect.poll(async () => (await state()).some(a => a.src.includes('section=1') && !a.paused && a.time >= 1.7 && Math.abs(a.rate - 1.8) < .01)).toBe(true)
+  await expect.poll(async () => (await state()).some(a => a.src.includes('section=1') && !a.paused && a.time >= 1.7 && Math.abs(a.rate - .9) < .01)).toBe(true)
+  for (let sample = 0; sample < 3; sample++) {
+    await page.waitForTimeout(300)
+    const drift = await page.evaluate(() => {
+      const video = document.querySelector('video')!
+      const players = (window as Window & { testNarrationMedia: HTMLAudioElement[] }).testNarrationMedia
+      const audio = players.find(a => a.src.includes('section=1') && !a.paused)!
+      return Math.abs(audio.currentTime / .9 - (video.currentTime - 10))
+    })
+    expect(drift).toBeLessThan(.4)
+  }
   // A real video emits pause and ended before an utterance necessarily finishes.
   await video.evaluate(el => {
     const media = el as HTMLVideoElement
@@ -250,20 +266,17 @@ test('commentary audio follows playback speed, pause, seek and mute', async ({ p
   const finishing = (await state()).find(a => a.src.includes('section=1'))!
   expect(finishing.time).toBeLessThan(8)
   await expect(page.getByText('正在播完最后一句…')).toBeVisible()
-  await page.getByLabel('视频倍速').selectOption('0.5')
-  await expect.poll(async () => (await state()).some(a => a.src.includes('section=1') && !a.paused && Math.abs(a.rate - .45) < .01)).toBe(true)
+  await expect.poll(async () => (await state()).some(a => a.src.includes('section=1') && !a.paused && Math.abs(a.rate - .9) < .01)).toBe(true)
   await video.evaluate(el => { Object.defineProperty(el, 'ended', { configurable: true, value: false }) })
   await page.getByRole('button', { name: '关闭解说声音' }).click()
   await expect.poll(async () => (await state()).every(a => a.paused)).toBe(true)
-  await page.getByRole('button', { name: '播放', exact: true }).click()
+  await page.getByRole('button', { name: /^(播放|重播)$/ }).click()
   expect(await video.evaluate(el => (el as HTMLVideoElement).paused)).toBe(false)
   await page.getByRole('button', { name: '导出解说', exact: true }).click()
   await page.route('**/narration/audio', mediaFile(tone(20)))
   await page.getByRole('button', { name: '朗读解说', exact: true }).click()
-  await expect.poll(async () => (await state()).some(a => !a.src.includes('section=') && !a.paused && a.rate === .5)).toBe(true)
-  // Simulate a selected-rate change while the export dialog is open.
-  await page.getByLabel('视频倍速').selectOption('1.5', { force: true })
-  await expect.poll(async () => (await state()).some(a => !a.src.includes('section=') && !a.paused && a.rate === 1.5)).toBe(true)
+  await expect.poll(async () => (await state()).some(a => !a.src.includes('section=') && !a.paused && a.rate === 1)).toBe(true)
+
 })
 
 
@@ -435,19 +448,18 @@ test('old backend image endpoint shows restart guidance for sidebar frame select
 })
 
 
-test('video enlarges with controls and preserves playback position and speed', async ({ page }) => {
+test('video enlarges with controls and preserves playback position at normal speed', async ({ page }) => {
   const backend = await mockBackend(page)
   backend.finish()
   await page.goto('/tasks/video-test')
   const video = page.locator('.cv-video-stage video')
   await video.evaluate(el => { (el as HTMLVideoElement).currentTime = 4 })
-  await page.getByLabel('视频倍速').selectOption('1.5')
   await page.getByRole('button', { name: '放大观看', exact: true }).click()
   await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true)
   await expect(page.getByRole('button', { name: '退出放大', exact: true })).toBeVisible()
   await expect(page.locator('.cv-video-panel .cv-voice-toggle')).toBeVisible()
   expect(await video.evaluate(el => (el as HTMLVideoElement).currentTime)).toBe(4)
-  expect(await video.evaluate(el => (el as HTMLVideoElement).playbackRate)).toBe(1.5)
+  expect(await video.evaluate(el => (el as HTMLVideoElement).playbackRate)).toBe(1)
   await page.getByRole('button', { name: '退出放大', exact: true }).click()
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true)
   await expect(page.getByRole('button', { name: '放大观看', exact: true })).toBeVisible()

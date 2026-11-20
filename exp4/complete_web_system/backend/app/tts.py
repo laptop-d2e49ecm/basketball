@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import threading
 import time
 from urllib.request import getproxies
@@ -22,9 +23,31 @@ DEFAULT_RATE = "+10%"
 DEFAULT_CLIMAX_RATE = "+35%"
 DEFAULT_CLIMAX_PITCH = "+25Hz"
 _SENTENCE_SPLIT = re.compile(r"(?<=[。！？!?；;])\s*")
-_SYNTH_LOCK = threading.Lock()
+_SYNTH_LOCKS = [threading.Lock() for _ in range(64)]
+_SYNTH_CAPACITY = threading.BoundedSemaphore(3)
 _REQUEST_TIMEOUT = 90
 _RETRY_DELAY = 0.3
+
+
+def _trim_segment_silence(data: bytes) -> bytes:
+    """Remove only the leading/trailing silence; preserve pauses inside speech."""
+    if len(data) < 1024:
+        return data
+    try:
+        import imageio_ffmpeg
+
+        trim = "silenceremove=start_periods=1:start_duration=0.02:start_threshold=-45dB:start_silence=0.04"
+        output = subprocess.run([
+            imageio_ffmpeg.get_ffmpeg_exe(), "-hide_banner", "-loglevel", "error",
+            "-f", "mp3", "-i", "pipe:0", "-af", f"{trim},areverse,{trim},areverse",
+            "-codec:a", "libmp3lame", "-b:a", "48k", "-f", "mp3", "pipe:1",
+        ], input=data, capture_output=True, timeout=15,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+        if output.returncode == 0 and output.stdout:
+            return output.stdout
+    except (ImportError, OSError, subprocess.TimeoutExpired):
+        logger.warning("分段音频静音裁剪失败，保留原始语音")
+    return data
 
 
 def _speech_proxy() -> str | None:
@@ -82,13 +105,14 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
             raise ValueError("解说段落不存在")
         text = str(sections[section].get("text") or "").strip()
         audio_path = narration_path.with_name(f"narration-section-{section}.mp3")
-    with _SYNTH_LOCK:
+    lock_index = int(hashlib.sha256(str(audio_path.resolve()).encode()).hexdigest(), 16) % len(_SYNTH_LOCKS)
+    with _SYNTH_LOCKS[lock_index], _SYNTH_CAPACITY:
         voice = os.getenv("BASKETBALL_TTS_VOICE", DEFAULT_VOICE)
         rate = os.getenv("BASKETBALL_TTS_RATE", DEFAULT_RATE)
         climax_rate = os.getenv("BASKETBALL_TTS_CLIMAX_RATE", DEFAULT_CLIMAX_RATE)
         climax_pitch = os.getenv("BASKETBALL_TTS_CLIMAX_PITCH", DEFAULT_CLIMAX_PITCH)
         profile_path = audio_path.with_suffix(".voice.json")
-        profile = json.dumps(["edge-new-v1", voice, rate, climax_rate, climax_pitch, hashlib.sha256(text.encode("utf-8")).hexdigest()])
+        profile = json.dumps(["edge-segment-trim-v2" if section is not None else "edge-new-v1", voice, rate, climax_rate, climax_pitch, hashlib.sha256(text.encode("utf-8")).hexdigest()])
         if (audio_path.is_file() and profile_path.is_file()
                 and profile_path.read_text(encoding="utf-8") == profile
                 and audio_path.stat().st_mtime_ns >= narration_path.stat().st_mtime_ns):
@@ -138,6 +162,8 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
                 time.sleep(_RETRY_DELAY)
         if not data:
             raise RuntimeError("语音合成返回空音频，请检查网络后重试")
+        if section is not None:
+            data = _trim_segment_silence(data)
         temporary = audio_path.with_suffix(".mp3.tmp")
         temporary.write_bytes(data)
         temporary.replace(audio_path)

@@ -64,7 +64,7 @@ def make_vision_model():
     """视频解说画面观察用的多模态客户端（OpenAI 兼容视觉端点）。
 
     默认复用 EXP5_LLM_* 的 base_url/key，仅模型名换成 EXP5_VISION_MODEL
-    （须选视觉模型，如 gpt-4o-mini）；也可用 EXP5_VISION_BASE_URL /
+    （默认复用当前 deepseek-flash）；也可用 EXP5_VISION_BASE_URL /
     EXP5_VISION_API_KEY 单独指向其他视觉服务商。key 未配置时抛 RuntimeError，
     调用方（worker.commentary.vision）会熔断并降级，不影响任务。
     """
@@ -76,12 +76,15 @@ def make_vision_model():
     if not api_key or "粘贴" in api_key or "填" in api_key:
         raise RuntimeError(f"视觉模型 key 未配置，请编辑 {ENV_PATH}")
     trust_env = cfg.get("EXP5_LLM_TRUST_ENV", "0") == "1"
-    timeout = float(cfg.get("EXP5_VISION_TIMEOUT", "20"))
+    timeout = float(cfg.get("EXP5_VISION_TIMEOUT", "30"))
+    model = cfg.get("EXP5_VISION_MODEL") or "deepseek-flash"
     return ChatOpenAI(
-        model=cfg.get("EXP5_VISION_MODEL", "gpt-4o-mini"),
+        model=model,
         base_url=cfg.get("EXP5_VISION_BASE_URL") or cfg.get("EXP5_LLM_BASE_URL", ""),
         api_key=api_key,
         temperature=0,
         timeout=timeout,
+        max_retries=0,
+        extra_body={"thinking": {"type": "disabled"}} if model.startswith("deepseek-") else None,
         http_client=httpx.Client(trust_env=trust_env, timeout=timeout),
     )
