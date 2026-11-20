@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -11,6 +12,7 @@ from worker.commentary.llm import content_text
 from worker.commentary.stub import StubCommentaryService
 
 EVENTS_PER_SEGMENT = 20
+SEGMENT_DURATION_MS = 6000
 logger = logging.getLogger("basketball-narration")
 
 
@@ -21,6 +23,30 @@ def _events(path: Path) -> list[dict[str, Any]]:
             if line.strip():
                 rows.append(json.loads(line))
     return sorted(rows, key=lambda row: int(row.get("t_ms", 0)))
+
+
+def _segment_ranges(events: list[dict[str, Any]]):
+    offset = 0
+    while offset < len(events):
+        bucket = int(events[offset].get("t_ms", 0)) // SEGMENT_DURATION_MS
+        end = offset + 1
+        while (end < len(events) and end - offset < EVENTS_PER_SEGMENT
+               and int(events[end].get("t_ms", 0)) // SEGMENT_DURATION_MS == bucket):
+            end += 1
+        yield offset, end
+        offset = end
+
+
+def _fit_spoken_length(text: str, target_chars: int) -> str:
+    """Keep complete spoken clauses when a model exceeds the time budget."""
+    limit = max(18, round(target_chars * 1.3))
+    if len(text) <= limit:
+        return text
+    boundaries = [match.end() for match in re.finditer(r"[。！？!?，,；;]", text[:limit])]
+    if not boundaries:
+        return text  # Never cut in the middle of a word or clause.
+    shortened = text[:boundaries[-1]].rstrip("，,；;")
+    return shortened if shortened.endswith(("。", "！", "？", "!", "?")) else shortened + "。"
 
 
 def generate_narration(
@@ -60,8 +86,8 @@ def generate_narration(
         int(events[-1].get("t_ms", 0)) + 1000,
         round(float((context or {}).get("video_duration_seconds") or 0) * 1000),
     )
-    for offset in range(0, len(events), EVENTS_PER_SEGMENT):
-        group = events[offset:offset + EVENTS_PER_SEGMENT]
+    for offset, group_end in _segment_ranges(events):
+        group = events[offset:group_end]
         start_ms = 0 if offset == 0 else int(group[0].get("t_ms", 0))
         next_offset = offset + len(group)
         end_ms = int(events[next_offset].get("t_ms", 0)) if next_offset < len(events) else duration_ms
@@ -130,6 +156,7 @@ def generate_narration(
                 )
                 break
             prompt += "上一稿包含没有事件证据的词语（" + "、".join(violations) + "），请重新查询事件并改写，避免这些词。"
+        text = _fit_spoken_length(text, target_chars)
         base["sections"].append({
             "start_ms": start_ms,
             "end_ms": end_ms,

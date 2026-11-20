@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,8 +12,8 @@ class FakeAgent:
 
     def invoke(self, payload):
         prompt = payload["messages"][0]["content"]
-        offset = len(self.calls) * 20
-        limit = 20 if offset == 0 else 1
+        offset = int(re.search(r"offset=(\d+)", prompt).group(1))
+        limit = int(re.search(r"limit=(\d+)", prompt).group(1))
         self.calls.append(prompt)
         call = {"name": "query_video_events", "args": {"task_id": "task123", "offset": offset, "limit": limit}}
         return {"messages": [
@@ -29,9 +30,10 @@ def test_agent_reads_all_event_pages_and_saves_narration(tmp_path: Path):
     result = generate_narration("task123", events_path, agent_factory=lambda: agent)
     assert result["status"] == "ready"
     assert result["event_count"] == 21
-    assert len(agent.calls) == len(result["sections"]) == 2
-    assert result["text"] == "第 1 段解说\n\n第 2 段解说"
-    assert result["tool_calls"][1]["args"]["offset"] == 20
+    assert len(agent.calls) == len(result["sections"]) == 4
+    assert result["text"] == "\n\n".join(f"第 {n} 段解说" for n in range(1, 5))
+    assert [call["args"]["offset"] for call in result["tool_calls"]] == [0, 6, 12, 18]
+    assert sum(section["event_count"] for section in result["sections"]) == 21
 
 
 def test_narration_failure_is_saved_for_retry(tmp_path: Path, monkeypatch):
@@ -118,11 +120,12 @@ def test_narration_budget_covers_video_tail_and_contiguous_intervals(tmp_path):
     agent = FakeAgent()
     result = generate_narration("task123", path, agent_factory=lambda: agent,
                                 context={"video_duration_seconds": 60})
-    first, last = result["sections"]
+    first, last = result["sections"][0], result["sections"][-1]
     assert first["start_ms"] == 0
-    assert first["end_ms"] == last["start_ms"] == 23000
+    assert all(a["end_ms"] == b["start_ms"] for a, b in zip(result["sections"], result["sections"][1:]))
     assert last["end_ms"] == 60000
-    assert "约 204 个汉字" in agent.calls[1]
+    target = round((60000 - last["start_ms"]) / 1000 * 5.5)
+    assert f"约 {target} 个汉字" in agent.calls[-1]
     assert "现场解说" in agent.calls[0]
     assert "一至两句" not in agent.calls[0]
 
@@ -131,3 +134,20 @@ def test_track_number_cannot_be_spoken_as_jersey_number():
     from worker.commentary.evidence import unsupported
     assert "161号" in unsupported("白衣161号传球。", [{"track_id": 161}], None)
     assert not unsupported("白衣26号传球。", [{"scene": "白衣26号持球。"}], None)
+
+
+def test_sparse_fast_events_still_produce_time_based_commentary(tmp_path):
+    path = tmp_path / "events.jsonl"
+    path.write_text("".join(json.dumps({"t_ms": n * 750, "type": "action"}) + "\n" for n in range(48)), encoding="utf-8")
+    result = generate_narration("task123", path, agent_factory=FakeAgent, context={"video_duration_seconds": 36})
+    assert len(result["sections"]) == 6
+    assert sum(section["event_count"] for section in result["sections"]) == 48
+    assert [section["start_ms"] for section in result["sections"]] == [0, 6000, 12000, 18000, 24000, 30000]
+
+
+def test_long_narration_is_shortened_at_a_complete_clause():
+    from worker.narration_service import _fit_spoken_length
+    text = "球员把球传出去了。接球人继续运球，随后又将球送向另一侧。场上有人移动，队友继续接应。"
+    result = _fit_spoken_length(text, 20)
+    assert result == "球员把球传出去了。接球人继续运球。"
+    assert _fit_spoken_length("没有任何标点的较长正文" * 5, 10) == "没有任何标点的较长正文" * 5

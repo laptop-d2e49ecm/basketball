@@ -455,3 +455,19 @@ test('video enlargement falls back to page view and Escape restores the layout',
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden')
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })
+
+
+test('six narration sections stay visible and an unset video does not show playback errors', async ({ page }) => {
+  const backend = await mockBackend(page)
+  backend.finish()
+  await page.route('**/narration', route => route.fulfill({ json: { code: 0, result: { ...narration,
+    text: '六段完整解说', sections: Array.from({ length: 6 }, (_, index) => ({ start_ms: index * 6000, end_ms: (index + 1) * 6000, text: `第${index + 1}段解说` })) }, msg: 'ok' } }))
+  await page.goto('/tasks/video-test')
+  await expect(page.locator('.cv-strip-card')).toHaveCount(6)
+  await expect(page.locator('.cv-seek-node')).toHaveCount(6)
+  const player = page.locator('.cv-video-stage video')
+  expect(await player.getAttribute('src')).toBeNull()
+  await player.evaluate(el => el.dispatchEvent(new Event('error', { bubbles: false })))
+  await expect(page.getByText('视频暂时无法播放，请稍后重试', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('正在准备浏览器可播放的视频…')).toBeVisible()
+})
