@@ -11,6 +11,7 @@ let upcoming: HTMLAudioElement | null = null
 let index = -1
 let stalled = false
 let wantsPlay = false
+let segmentFit = 1
 function release(audio: HTMLAudioElement | null) {
   if (!audio) return
   audio.onloadedmetadata = audio.oncanplay = audio.onerror = audio.onended = null
@@ -43,6 +44,7 @@ function changeCue(i: number) {
   blocked.value = false
   message.value = ''
   index = i
+  segmentFit = 1
   if (i < 0 || !props.segmented) return
   if (upcoming?.src.endsWith(cueUrl(i))) {
     current = upcoming
@@ -72,6 +74,7 @@ function synchronize(force: boolean) {
   // Let the final utterance finish at its current position after the picture ends.
   // Seeking it to the video's final timestamp would skip unread words.
   if (video.ended && index === props.cues.length - 1 && current) {
+    current.playbackRate = Math.min(16, video.playbackRate * segmentFit)
     if (current.ended) { message.value = ''; return }
     message.value = '正在播完最后一句…'
     if (current.paused && !wantsPlay && !blocked.value) {
@@ -104,6 +107,7 @@ function synchronize(force: boolean) {
   }
   // Stretch slightly short narration too, retaining a natural minimum speed.
   const fit = Math.max(.8, audio.duration / span)
+  segmentFit = fit
   const target = Math.min(audio.duration, offset * fit)
   audio.playbackRate = Math.min(16, video.playbackRate * fit)
   if (force || Math.abs(audio.currentTime - target) > .35) audio.currentTime = target

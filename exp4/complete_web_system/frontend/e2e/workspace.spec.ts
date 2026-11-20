@@ -229,7 +229,10 @@ test('commentary audio follows playback speed, pause, seek and mute', async ({ p
   await page.getByRole('button', { name: '播放', exact: true }).click()
   await expect.poll(async () => (await state()).some(a => !a.paused && a.time > 0)).toBe(true)
   await expect.poll(async () => (await state()).some(a => !a.paused && Math.abs(a.rate - .9) < .01)).toBe(true)
+  const beforeFast = await video.evaluate(el => (el as HTMLVideoElement).currentTime)
   await page.getByLabel('视频倍速').selectOption('2')
+  await page.waitForTimeout(700)
+  expect(await video.evaluate(el => (el as HTMLVideoElement).currentTime) - beforeFast).toBeGreaterThan(1)
   await expect.poll(async () => (await state()).some(a => !a.paused && Math.abs(a.rate - 1.8) < .01)).toBe(true)
   await page.getByRole('button', { name: '暂停', exact: true }).click()
   await expect.poll(async () => (await state()).every(a => a.paused)).toBe(true)
@@ -247,11 +250,20 @@ test('commentary audio follows playback speed, pause, seek and mute', async ({ p
   const finishing = (await state()).find(a => a.src.includes('section=1'))!
   expect(finishing.time).toBeLessThan(8)
   await expect(page.getByText('正在播完最后一句…')).toBeVisible()
+  await page.getByLabel('视频倍速').selectOption('0.5')
+  await expect.poll(async () => (await state()).some(a => a.src.includes('section=1') && !a.paused && Math.abs(a.rate - .45) < .01)).toBe(true)
   await video.evaluate(el => { Object.defineProperty(el, 'ended', { configurable: true, value: false }) })
   await page.getByRole('button', { name: '关闭解说声音' }).click()
   await expect.poll(async () => (await state()).every(a => a.paused)).toBe(true)
   await page.getByRole('button', { name: '播放', exact: true }).click()
   expect(await video.evaluate(el => (el as HTMLVideoElement).paused)).toBe(false)
+  await page.getByRole('button', { name: '导出解说', exact: true }).click()
+  await page.route('**/narration/audio', mediaFile(tone(20)))
+  await page.getByRole('button', { name: '朗读解说', exact: true }).click()
+  await expect.poll(async () => (await state()).some(a => !a.src.includes('section=') && !a.paused && a.rate === .5)).toBe(true)
+  // Simulate a selected-rate change while the export dialog is open.
+  await page.getByLabel('视频倍速').selectOption('1.5', { force: true })
+  await expect.poll(async () => (await state()).some(a => !a.src.includes('section=') && !a.paused && a.rate === 1.5)).toBe(true)
 })
 
 
