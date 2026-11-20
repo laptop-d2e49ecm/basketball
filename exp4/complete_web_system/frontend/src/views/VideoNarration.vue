@@ -7,127 +7,74 @@ const enabled = ref(true)
 const message = ref('')
 const blocked = ref(false)
 let current: HTMLAudioElement | null = null
-let upcoming: HTMLAudioElement | null = null
-let index = -1
 let stalled = false
 let wantsPlay = false
-let segmentFit = 1
-function release(audio: HTMLAudioElement | null) {
-  if (!audio) return
-  audio.onloadedmetadata = audio.oncanplay = audio.onerror = audio.onended = null
-  audio.pause()
-  audio.removeAttribute('src')
-  audio.load()
-}
+let hasPlayed = false
+
 function reset() {
-  index = -1
-  wantsPlay = false
-  release(current)
-  release(upcoming)
-  current = upcoming = null
-  message.value = ''
-  blocked.value = false
-}
-function cueUrl(i: number) {
-  return props.url + '?section=' + i + '&v=' + encodeURIComponent(props.revision)
-}
-function prepareNext() {
-  if (!upcoming && props.segmented && index + 1 < props.cues.length) {
-    upcoming = new Audio(cueUrl(index + 1))
-    upcoming.preload = 'auto'
-  }
-}
-function changeCue(i: number) {
-  release(current)
-  current = null
-  wantsPlay = false
-  blocked.value = false
-  message.value = ''
-  index = i
-  segmentFit = 1
-  if (i < 0 || !props.segmented) return
-  if (upcoming?.src.endsWith(cueUrl(i))) {
-    current = upcoming
-    upcoming = null
-  } else {
-    release(upcoming)
-    upcoming = null
-    current = new Audio()
-  }
   const audio = current
+  current = null
+  wantsPlay = hasPlayed = false
+  if (audio) {
+    audio.onloadedmetadata = audio.oncanplay = audio.onerror = audio.onended = null
+    audio.pause()
+    audio.removeAttribute('src')
+    audio.load()
+  }
+  message.value = ''
+  blocked.value = false
+}
+function prepare() {
+  if (current) return current
+  const audio = new Audio()
+  current = audio
   audio.preload = 'auto'
-  audio.onended = () => { wantsPlay = false; if (props.video?.ended) message.value = '' }
-  audio.onloadedmetadata = () => { synchronize(true); prepareNext() }
+  audio.onloadedmetadata = () => synchronize(true)
   audio.oncanplay = () => synchronize(false)
+  audio.onended = () => { wantsPlay = false; if (props.video?.ended) message.value = '' }
   audio.onerror = () => {
     if (current !== audio) return
     blocked.value = true
-    message.value = '在线语音暂不可用，点击重试'
+    message.value = '解说音轨暂不可用，点击重试'
   }
-  if (!audio.getAttribute('src')) audio.src = cueUrl(i)
-  else if (audio.error) audio.onerror(new Event('error'))
-  else if (audio.readyState >= 1) prepareNext()
+  audio.src = props.url + '?timeline=1&track=continuous-v2&v=' + encodeURIComponent(props.revision)
+  return audio
+}
+function play(audio: HTMLAudioElement, finishing = false) {
+  if (!audio.paused || wantsPlay || blocked.value) return
+  wantsPlay = true
+  void audio.play().then(() => {
+    if (current !== audio) return
+    hasPlayed = true
+    message.value = finishing ? '正在播完最后一句…' : ''
+  }).catch((error: Error) => {
+    if (current !== audio || error.name === 'AbortError') return
+    blocked.value = true
+    message.value = error.name === 'NotAllowedError' ? '点击开启解说声音' : '解说音轨暂不可用，点击重试'
+  }).finally(() => { if (current === audio) wantsPlay = false })
 }
 function synchronize(force: boolean) {
   const video = props.video
   if (!video || !enabled.value || !props.cues.length) return
-  // Let the final utterance finish at its current position after the picture ends.
-  // Seeking it to the video's final timestamp would skip unread words.
-  if (video.ended && index === props.cues.length - 1 && current) {
-    const rate = Math.min(16, segmentFit)
-    if (Math.abs(current.playbackRate - rate) > .0001) current.playbackRate = rate
-    if (current.ended) { message.value = ''; return }
+  if (!props.segmented) { message.value = '整场解说稿就绪后可播放语音'; return }
+  const audio = prepare()
+  if (blocked.value) return
+  if (video.ended && hasPlayed && !audio.ended && audio.currentTime >= props.cues.at(-1)!.start_ms / 1000 - .5) {
     message.value = '正在播完最后一句…'
-    if (current.paused && !wantsPlay && !blocked.value) {
-      const audio = current
-      wantsPlay = true
-      void audio.play().catch(() => {
-        if (current === audio) { blocked.value = true; message.value = '点击播完最后一句' }
-      }).finally(() => { if (current === audio) wantsPlay = false })
-    }
+    play(audio, true)
     return
   }
-  const now = video.currentTime
-  let i = -1
-  while (i + 1 < props.cues.length && props.cues[i + 1]!.start_ms <= now * 1000) i++
-  if (i !== index) changeCue(i)
-  if (i < 0) return
-  const cue = props.cues[i]!
-  const start = cue.start_ms / 1000
-  const end = props.cues[i + 1]?.start_ms
-  const span = Math.max(.1, end !== undefined ? end / 1000 - start : (video.duration || Infinity) - start)
-  const offset = Math.max(0, now - start)
-  const shouldPlay = !video.paused && !video.ended && !stalled && !video.seeking && now >= start
-  if (!props.segmented) { message.value = '整场解说稿就绪后可播放语音'; return }
-  const audio = current
-  if (!audio) return
+  const shouldPlay = !video.paused && !video.ended && !video.seeking && !stalled
   if (!shouldPlay) { audio.pause(); wantsPlay = false }
-  if (blocked.value) return
   if (!Number.isFinite(audio.duration)) {
     if (shouldPlay) message.value = '正在准备解说语音…'
     return
   }
-  // Stretch slightly short narration too, retaining a natural minimum speed.
-  const fit = Math.max(.8, audio.duration / span)
-  segmentFit = fit
-  const target = Math.min(audio.duration, offset * fit)
-  const rate = Math.min(16, fit)
-  if (Math.abs(audio.playbackRate - rate) > .0001) audio.playbackRate = rate
-  if (force || Math.abs(audio.currentTime - target) > .35) audio.currentTime = target
-  if (!shouldPlay || target >= audio.duration - .035 || wantsPlay || blocked.value) return
-  wantsPlay = true
-  void audio.play().then(() => {
-    if (audio === current) message.value = ''
-  }).catch((error: Error) => {
-    if (audio !== current || error.name === 'AbortError') return
-    if (error.name === 'NotAllowedError') {
-      blocked.value = true
-      message.value = '点击开启解说声音'
-    } else {
-      blocked.value = true
-      message.value = '在线语音暂不可用，点击重试'
-    }
-  }).finally(() => { if (audio === current) wantsPlay = !audio.paused })
+  const target = Math.min(audio.duration, Math.max(0, video.currentTime))
+  // One prepared track runs at its natural rate. Align only on a real seek or
+  // when resuming a paused track; never skip spoken samples during playback.
+  if ((force || (shouldPlay && audio.paused)) && Math.abs(audio.currentTime - target) > .06) audio.currentTime = target
+  if (shouldPlay && target < audio.duration - .025) play(audio)
 }
 function toggle() {
   if (blocked.value) { reset(); synchronize(true); return }
@@ -140,26 +87,15 @@ watch(() => [props.video, props.cues, props.url, props.revision, props.segmented
   reset()
   stalled = false
   if (!video) return
-  let frame = 0
-  function tick() {
-    frame = 0
-    if (video!.paused || video!.ended) return
-    synchronize(false)
-    frame = requestAnimationFrame(tick)
-  }
   function update(event: Event) {
     if (event.type === 'waiting' || event.type === 'seeking') stalled = true
     if (event.type === 'playing' || event.type === 'seeked') stalled = false
     synchronize(event.type === 'seeked' || event.type === 'loadedmetadata')
-    if (!frame && !video!.paused && !video!.ended) frame = requestAnimationFrame(tick)
   }
-  const events = ['playing', 'play', 'pause', 'ended', 'waiting', 'seeking', 'seeked', 'timeupdate', 'ratechange', 'loadedmetadata']
+  const events = ['playing', 'play', 'pause', 'ended', 'waiting', 'seeking', 'seeked', 'timeupdate', 'loadedmetadata']
   events.forEach(type => video.addEventListener(type, update))
   synchronize(true)
-  clean(() => {
-    cancelAnimationFrame(frame)
-    events.forEach(type => video.removeEventListener(type, update))
-  })
+  clean(() => events.forEach(type => video.removeEventListener(type, update)))
 }, { immediate: true })
 watch(() => [props.video, enabled.value, props.cues.length > 0, blocked.value] as const, ([video, on, available, isBlocked], _, clean) => {
   if (!video || !on || !available || isBlocked) return

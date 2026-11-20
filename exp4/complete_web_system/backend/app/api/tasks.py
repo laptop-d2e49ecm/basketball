@@ -252,7 +252,7 @@ def get_narration(task_id: str) -> ApiEnvelope[dict[str, Any]]:
 
 
 @router.get("/{task_id}/narration/audio")
-def get_narration_audio(task_id: str, section: int | None = None) -> FileResponse:
+def get_narration_audio(task_id: str, section: int | None = None, timeline: bool = False) -> FileResponse:
     """整场解说稿的神经网络语音（edge-tts），合成结果缓存在任务目录。"""
     row = task_repo.get_task(task_id)
     if row is None:
@@ -265,7 +265,14 @@ def get_narration_audio(task_id: str, section: int | None = None) -> FileRespons
     from app.tts import synthesize_narration
 
     try:
-        audio_path = synthesize_narration(narration_path, section)
+        if timeline:
+            if section is not None:
+                raise ValueError("连续音轨不能同时指定分段")
+            from app.narration_timeline import synthesize_timeline
+
+            audio_path = synthesize_timeline(narration_path)
+        else:
+            audio_path = synthesize_narration(narration_path, section)
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return FileResponse(audio_path, media_type="audio/mpeg")

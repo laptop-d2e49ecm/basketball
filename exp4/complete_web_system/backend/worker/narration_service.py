@@ -238,6 +238,13 @@ def run_task_narration(task_id: str, events_path: Path) -> dict[str, Any]:
 
         with ThreadPoolExecutor(max_workers=3, thread_name_prefix="narration-audio") as pool:
             cached_audio = [path for path in pool.map(warm, range(len(result["sections"]))) if path]
+        if len(cached_audio) == len(result["sections"]):
+            try:
+                from app.narration_timeline import synthesize_timeline
+
+                cached_audio.append(synthesize_timeline(narration_path))
+            except (RuntimeError, ValueError):
+                logger.warning("连续音轨准备失败，播放时可重试：%s", task_id)
     write_narration(narration_path, result)
     for audio in cached_audio:
         audio.touch()  # Cache must be newer than the final ready JSON.
