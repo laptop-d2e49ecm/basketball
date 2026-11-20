@@ -17,3 +17,5 @@ langchain-openai>=0.3
 openai>=1.40
 # 整场解说神经网络语音（edge-tts，免费无 key）；缺失时前端自动回退浏览器 TTS
 edge-tts>=7.0
+
+psutil>=6.0  # identify and restart project-owned Windows service trees

@@ -17,6 +17,7 @@ $LogDir = Join-Path $RuntimeDir 'logs'
 $ManifestPath = Join-Path $RuntimeDir 'services.json'
 $PythonExe = Join-Path $BackendDir '.venv\Scripts\python.exe'
 $ViteCli = Join-Path $FrontendDir 'node_modules\vite\bin\vite.js'
+$ProcessHelper = Join-Path $Root 'service_processes.py'
 $FrontendUrl = 'http://127.0.0.1:5173/'
 $ApiHealthUrl = 'http://127.0.0.1:8000/api/v1/health'
 
@@ -34,7 +35,7 @@ function Test-ManagedProcess($Entry) {
 
 function Save-Manifest {
     if ($script:ManagedEntries.Count -gt 0) {
-        ConvertTo-Json -InputObject @($script:ManagedEntries) -Depth 4 |
+        $script:ManagedEntries | ConvertTo-Json -Depth 4 |
             Set-Content -LiteralPath $ManifestPath -Encoding UTF8
     } elseif (Test-Path -LiteralPath $ManifestPath) {
         Remove-Item -LiteralPath $ManifestPath -Force
@@ -68,7 +69,7 @@ function Get-ApiHealth {
     }
 }
 
-function Test-TaskDeleteEndpoint {
+function Test-CurrentApiEndpoints {
     try {
         $Schema = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/openapi.json' -TimeoutSec 2
         $TaskPath = $Schema.paths.PSObject.Properties['/api/v1/tasks/{task_id}'].Value
@@ -85,7 +86,7 @@ function Test-ApiReady {
         $Response -and
         $Response.code -eq 0 -and
         $Response.result.status -eq 'ok' -and
-        (Test-TaskDeleteEndpoint)
+        (Test-CurrentApiEndpoints)
     )
 }
 
@@ -98,23 +99,25 @@ function Test-FrontendReady {
     }
 }
 
-function Test-WorkerRunning {
-    try {
-        $Processes = Get-CimInstance -ClassName Win32_Process -Filter "Name='python.exe'"
-        foreach ($Process in $Processes) {
-            if ($Process.ExecutablePath -ieq $PythonExe -and $Process.CommandLine -match 'worker\.main') {
-                return $true
+function Get-OwnedEntries {
+    $Json = & $PythonExe $ProcessHelper list
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect project services. Install backend requirements.txt (psutil is required).' }
+    foreach ($Row in ($Json | ConvertFrom-Json)) {
+        try {
+            $Process = Get-Process -Id ([int]$Row.id) -ErrorAction Stop
+            [pscustomobject]@{
+                Service = $Row.service; Id = $Process.Id; ProcessName = $Process.ProcessName
+                StartTimeTicks = [string]$Process.StartTime.ToUniversalTime().Ticks
+                Stdout = $null; Stderr = $null; Ports = @($Row.ports)
             }
-        }
-    } catch {
-        return $false
+        } catch { }
     }
-    return $false
 }
 
 function Stop-Entry($Entry) {
     if (Test-ManagedProcess $Entry) {
-        Stop-Process -Id ([int]$Entry.Id) -Force -ErrorAction SilentlyContinue
+        & $PythonExe $ProcessHelper stop --pid ([string]$Entry.Id)
+        if ($LASTEXITCODE -ne 0) { throw "Cannot stop project service $($Entry.Service)." }
     }
 }
 
@@ -166,7 +169,9 @@ $script:ManagedEntries = @()
 $script:NewEntries = @()
 if (Test-Path -LiteralPath $ManifestPath) {
     try {
-        $SavedEntries = @(Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json)
+        $SavedDocument = Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($SavedDocument.PSObject.Properties.Name -contains 'value') { $SavedDocument = $SavedDocument.value }
+        $SavedEntries = @($SavedDocument)
         foreach ($Entry in $SavedEntries) {
             if (Test-ManagedProcess $Entry) { $script:ManagedEntries += $Entry }
         }
@@ -187,13 +192,32 @@ try {
         throw 'Node.js was not found. Install Node.js 20.19+ or add node.exe to PATH.'
     }
     $env:Path = (Split-Path -Parent $NodeExe) + ';' + $env:Path
+    # Recover services even when the manifest was lost; identify by cwd and command.
+    foreach ($Entry in @(Get-OwnedEntries)) {
+        if (-not ($script:ManagedEntries | Where-Object { $_.Id -eq $Entry.Id })) { $script:ManagedEntries += $Entry }
+    }
+    Save-Manifest
+
 
     $ApiHealth = Get-ApiHealth
     $ExistingApi = Test-ApiReady
     $ApiEntry = $null
     if (-not $ExistingApi) {
         if ($ApiHealth -and $ApiHealth.code -eq 0 -and $ApiHealth.result.status -eq 'ok') {
-            throw '检测到旧版后端正在 8000 端口运行，尚未加载当前版本的任务和聊天图片接口。请先运行 stop_project.bat；若后端是从 PowerShell 手动启动的，请在那个窗口按 Ctrl+C，然后重新运行 start_project_v3.bat。'
+            $ApiOwners = @(Get-OwnedEntries | Where-Object { $_.Service -eq 'api' -and $_.Ports -contains 8000 })
+            if ($ApiOwners.Count -ne 1) { throw 'Port 8000 is occupied by an unrecognized service. Stop that service before starting this project.' }
+            $TaskOffset = 0
+            do {
+                $Tasks = Invoke-RestMethod -Uri ("http://127.0.0.1:8000/api/v1/tasks?limit=200&offset=" + $TaskOffset) -TimeoutSec 5
+                if (@($Tasks.result | Where-Object { $_.status -in @('running', 'pending') }).Count) {
+                    throw 'Video tasks are active. Wait for them to finish before restarting the old backend.'
+                }
+                $TaskOffset += 200
+            } while (@($Tasks.result).Count -eq 200)
+            Write-Host 'Updating the old project backend...'
+            Stop-Entry $ApiOwners[0]
+            $script:ManagedEntries = @($script:ManagedEntries | Where-Object { Test-ManagedProcess $_ })
+            Save-Manifest
         }
         $ApiEntry = Start-HiddenService 'api' $PythonExe @(
             '-u', '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000', '--app-dir', $BackendDir
@@ -201,7 +225,7 @@ try {
     }
 
     $WorkerEntry = $script:ManagedEntries | Where-Object { $_.Service -eq 'worker' } | Select-Object -First 1
-    if (-not $WorkerEntry -and -not (Test-WorkerRunning)) {
+    if (-not $WorkerEntry) {
         $WorkerEntry = Start-HiddenService 'worker' $PythonExe @('-u', '-m', 'worker.main') $BackendDir
     } elseif ($WorkerEntry) {
         Write-Host 'Worker is already running.'
@@ -240,9 +264,9 @@ try {
 
     Save-Manifest
     Write-Host "All services are ready: $FrontendUrl"
-    Start-Process -FilePath $FrontendUrl
+    if ($env:COURTVISION_NO_BROWSER -ne '1') { Start-Process -FilePath $FrontendUrl }
 } catch {
-    Write-Error $_ -ErrorAction Continue
+    Write-Host ('启动失败：' + $_.Exception.Message) -ForegroundColor Red
     for ($Index = $script:NewEntries.Count - 1; $Index -ge 0; $Index--) {
         Stop-Entry $script:NewEntries[$Index]
     }

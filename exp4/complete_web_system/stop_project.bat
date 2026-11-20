@@ -12,16 +12,23 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $env:COURTVISION_SCRIPT_PATH
 $RuntimeDir = Join-Path $Root '.runtime'
 $ManifestPath = Join-Path $RuntimeDir 'services.json'
-if (-not (Test-Path -LiteralPath $ManifestPath)) {
-    Write-Host 'No launcher-managed services are running.'
-    exit 0
+$PythonExe = Join-Path $Root 'backend\.venv\Scripts\python.exe'
+$ProcessHelper = Join-Path $Root 'service_processes.py'
+$Entries = @()
+if (Test-Path -LiteralPath $ManifestPath) {
+    try {
+        $Saved = Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($Saved.PSObject.Properties.Name -contains 'value') { $Saved = $Saved.value }
+        $Entries = @($Saved)
+    } catch { Write-Host 'Recovering services from process ownership...' }
 }
-
-try {
-    $Entries = @(Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json)
-} catch {
-    Write-Error 'The service list could not be read. Remove .runtime\services.json after checking running processes.'
-    exit 1
+$Json = & $PythonExe $ProcessHelper list
+if ($LASTEXITCODE -ne 0) { Write-Host 'Cannot inspect services. Install backend requirements.txt.'; exit 1 }
+foreach ($Row in ($Json | ConvertFrom-Json)) {
+    if (-not ($Entries | Where-Object { $_.Id -eq $Row.id })) {
+        $Process = Get-Process -Id ([int]$Row.id) -ErrorAction SilentlyContinue
+        if ($Process) { $Entries += [pscustomobject]@{ Service=$Row.service; Id=$Process.Id; ProcessName=$Process.ProcessName; StartTimeTicks=[string]$Process.StartTime.ToUniversalTime().Ticks } }
+    }
 }
 
 for ($Index = $Entries.Count - 1; $Index -ge 0; $Index--) {
@@ -31,11 +38,15 @@ for ($Index = $Entries.Count - 1; $Index -ge 0; $Index--) {
         $SameProcess = $Process.ProcessName -eq [string]$Entry.ProcessName
         $SameStartTime = [string]$Process.StartTime.ToUniversalTime().Ticks -eq [string]$Entry.StartTimeTicks
         if ($SameProcess -and $SameStartTime) {
-            Stop-Process -Id $Process.Id -Force
+            & $PythonExe $ProcessHelper stop --pid ([string]$Process.Id)
+            if ($LASTEXITCODE -ne 0) { throw 'Project service could not be stopped.' }
             Write-Host "Stopped $($Entry.Service)."
         }
     } catch {
-        # The process already exited or its PID has been reused; leave it alone.
+        if (Get-Process -Id ([int]$Entry.Id) -ErrorAction SilentlyContinue) {
+            Write-Host ('停止失败：' + $_.Exception.Message) -ForegroundColor Red
+            exit 1
+        }
     }
 }
 
