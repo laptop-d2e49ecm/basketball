@@ -4,7 +4,7 @@ import json
 import shutil
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
@@ -50,6 +50,7 @@ def create_task(
     team2: str | None = Form(default=None),
     score1: str | None = Form(default=None),
     score2: str | None = Form(default=None),
+    analysis_mode: Annotated[Literal["fast", "detailed"], Form()] = "fast",
 ) -> ApiEnvelope[TaskCreated]:
     original_name = Path(file.filename or "").name
     if Path(original_name).suffix.lower() != ".mp4":
@@ -79,6 +80,7 @@ def create_task(
             "score1": score1,
             "score2": score2,
             "frame_step": settings.video_frame_step,
+            "analysis_mode": analysis_mode,
         }
         task_repo.create_task(
             task_id=task_id,

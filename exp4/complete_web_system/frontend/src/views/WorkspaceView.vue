@@ -80,6 +80,7 @@ const uploadPercent = ref(0)
 const showUpload = ref(false)
 const selectedFile = ref<File | null>(null)
 const videoName = ref('')
+const analysisMode = ref<'fast' | 'detailed'>('fast')
 const videoElement = ref<HTMLVideoElement | null>(null)
 const videoPanel = ref<HTMLElement | null>(null)
 const nativeVideoFullscreen = ref(false)
@@ -266,6 +267,7 @@ async function confirmUpload(): Promise<void> {
   const file = selectedFile.value
   const form = new FormData()
   form.append('file', file)
+  form.append('analysis_mode', analysisMode.value)
   if (team1.value.trim()) form.append('team1', team1.value.trim())
   if (team2.value.trim()) form.append('team2', team2.value.trim())
   if (scores) { form.append('score1', scores[1]!); form.append('score2', scores[2]!) }
@@ -680,7 +682,7 @@ onBeforeUnmount(() => { void leaveVideoExpanded(); document.removeEventListener(
       </button>
       <div v-if="selectedFile" class="cv-file-row"><span aria-hidden="true">▶</span><div><b>{{ selectedFile.name }}</b><small>{{ (selectedFile.size / 1048576).toFixed(1) }} MB · {{ uploadDuration ? clock(uploadDuration) + ' · ' : '' }}MP4</small></div><button aria-label="移除视频" :disabled="uploading" @click="clearFile">×</button></div>
       <video v-if="uploadPreview" :key="uploadPreview" hidden preload="metadata" :src="uploadPreview" @loadedmetadata="uploadDuration = ($event.target as HTMLVideoElement).duration"></video>
-      <input class="cv-import-input" v-model="videoName" aria-label="视频名称" maxlength="120" placeholder="给视频起个名字（可选）">
+      <label class="cv-analysis-mode">分析模式<select v-model="analysisMode" :disabled="uploading" aria-label="分析模式"><option value="fast">快速分析（推荐）</option><option value="detailed">精细分析</option></select><small>快速模式减少相邻画面的重复检测；精细模式保留更密集的动作时间点。</small></label><input class="cv-import-input" v-model="videoName" aria-label="视频名称" maxlength="120" placeholder="给视频起个名字（可选）">
       <div class="cv-match-fields">
         <input class="cv-import-input" v-model="team1" aria-label="主队" maxlength="24" placeholder="主队（可选）">
         <input class="cv-import-input" v-model="team2" aria-label="客队" maxlength="24" placeholder="客队（可选）">

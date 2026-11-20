@@ -136,3 +136,7 @@
 .cv-video-panel:fullscreen video,.cv-video-panel.cv-video-expanded video { position:absolute; inset:0; max-height:none; object-fit:contain; }
 .cv-video-panel:fullscreen .cv-video-controls,.cv-video-panel.cv-video-expanded .cv-video-controls { flex:0 0 auto; min-height:46px; }
 @media(max-width:520px) { .cv-video-controls { flex-wrap:wrap; height:auto; min-height:42px; padding-block:6px; } .cv-video-controls .cv-seek { order:1; flex-basis:100%; } }
+
+.cv-analysis-mode { display:flex; flex-wrap:wrap; gap:8px; align-items:center; color:#e3c5d5; font-size:12px; margin-bottom:12px; }
+.cv-analysis-mode select { border:1px solid #684c60; border-radius:6px; padding:7px; background:#211923; color:#f7e6f0; }
+.cv-analysis-mode small { flex-basis:100%; color:#a99aa4; line-height:1.5; }

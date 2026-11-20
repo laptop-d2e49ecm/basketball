@@ -5,6 +5,7 @@ import json
 import logging
 import hashlib
 import tempfile
+import os
 from importlib.metadata import version
 from collections.abc import Callable
 from pathlib import Path
@@ -20,6 +21,11 @@ NUM_FRAMES = 16
 BOX_EXPAND = 1.2
 MIN_WINDOW_FRAMES = 5
 ZONE_GRID = 4  # 冷却键的空间网格（归一化 4×4 分区）：缓解跟踪 ID 碎片绕过冷却
+
+
+def _action_thread_count() -> int:
+    available = os.cpu_count() or 1
+    return max(1, min(available, int(os.getenv("BASKETBALL_ACTION_THREADS", str(min(8, available))))))
 
 
 class ActionRecognizer:
@@ -48,8 +54,12 @@ class ActionRecognizer:
         try:
             import onnxruntime as ort
 
+            options = ort.SessionOptions()
+            options.intra_op_num_threads = _action_thread_count()
+            options.inter_op_num_threads = 1
+            options.add_session_config_entry("session.intra_op.allow_spinning", "0")
             self._session = ort.InferenceSession(
-                str(self.model_path), providers=["CPUExecutionProvider"])
+                str(self.model_path), sess_options=options, providers=["CPUExecutionProvider"])
             self._input_name = self._session.get_inputs()[0].name
             meta = json.loads(self.meta_path.read_text(encoding="utf-8"))
             self.classes = list(meta["classes"])
@@ -237,7 +247,7 @@ class VideoFrameLoader:
 
 
 def recognize_video_actions(video: Path, detections: Path, model: Path, meta: Path,
-                            cache_dir: Path, threshold: float, cooldown_ms: int) -> list[dict[str, Any]]:
+                            cache_dir: Path, threshold: float, cooldown_ms: int, *, stride_ms: int = 1000) -> list[dict[str, Any]]:
     if not model.is_file() or not meta.is_file():
         logger.warning("动作模型或元数据缺失：%s", model)
         return []
@@ -247,7 +257,7 @@ def recognize_video_actions(video: Path, detections: Path, model: Path, meta: Pa
     for path in (video, detections, model, meta, Path(__file__)):
         with path.open("rb") as stream:
             digest.update(hashlib.file_digest(stream, "sha256").digest())
-    digest.update(json.dumps([threshold, cooldown_ms, cv2.__version__, np.__version__,
+    digest.update(json.dumps([threshold, cooldown_ms, stride_ms, _action_thread_count(), cv2.__version__, np.__version__,
                               version("onnxruntime")]).encode())
     target = cache_dir / (digest.hexdigest() + ".json")
     if target.is_file():
@@ -263,7 +273,7 @@ def recognize_video_actions(video: Path, detections: Path, model: Path, meta: Pa
     loader = VideoFrameLoader(video)
     try:
         rows = list(iter_action_events(detections, loader, recognizer,
-                                       conf_threshold=threshold, cooldown_ms=cooldown_ms))
+                                       conf_threshold=threshold, cooldown_ms=cooldown_ms, stride_ms=stride_ms))
     finally:
         loader.close()
     try:

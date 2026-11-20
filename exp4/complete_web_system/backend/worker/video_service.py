@@ -40,6 +40,12 @@ def _write_jsonl_line(stream: Any, value: dict[str, Any]) -> None:
     stream.write(json.dumps(value, ensure_ascii=False) + "\n")
 
 
+def analysis_frame_step(fps: float, requested: int, mode: str) -> int:
+    """Fast mode targets about 8 observations/s; detailed mode retains the configured stride."""
+    base = max(1, requested)
+    return max(base, int(fps / 8)) if mode == "fast" and fps > 0 else base
+
+
 def process_task(task: dict[str, Any], model: Any) -> None:
     task_id = task["id"]
     task_dir = settings.runs_dir / task_id
@@ -52,7 +58,7 @@ def process_task(task: dict[str, Any], model: Any) -> None:
     fps = cap.get(cv2.CAP_PROP_FPS) or 0
     frame_total_raw = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     requested_step = int(task.get("metadata", {}).get("frame_step", settings.video_frame_step))
-    frame_step = max(1, requested_step)
+    frame_step = analysis_frame_step(fps, requested_step, task.get("metadata", {}).get("analysis_mode", "detailed"))
     if frame_total_raw > 0:
         frame_step = min(frame_step, frame_total_raw)
         # Ultralytics' video loader reports floor(frame_count / vid_stride).
@@ -151,7 +157,7 @@ def process_task(task: dict[str, Any], model: Any) -> None:
             )
             frames_done += 1
 
-            progress = min(0.99, frames_done / frames_total) if frames_total else 0.0
+            progress = min(0.65, frames_done / frames_total * 0.65) if frames_total else 0.0
             should_report = (
                 frames_done % 25 == 0
                 if frames_total is None
@@ -175,18 +181,21 @@ def process_task(task: dict[str, Any], model: Any) -> None:
                 )
                 last_progress_notice = progress
 
+    detection_seconds = perf_counter() - started
+    action_started = perf_counter()
+
     # 动作识别阶段（BASKETBALL_ACTION=on 且权重存在时启用；任何失败都回退启发式事件）
     action_events: list[dict[str, Any]] = []
     if settings.action_recognition_enabled:
         task_repo.update_task(
             task_id,
             stage="action",
-            progress=0.99,
+            progress=0.65,
             frames_done=frames_done,
             notify={
                 "type": "progress",
                 "stage": "action",
-                "progress": 0.99,
+                "progress": 0.65,
                 "frames_done": frames_done,
                 "frames_total": frames_total,
                 "frame_step": frame_step,
@@ -197,21 +206,24 @@ def process_task(task: dict[str, Any], model: Any) -> None:
                 video_path, detections_path, settings.action_model_path, settings.action_meta_path,
                 settings.runs_dir / ".action_cache", settings.action_conf_threshold,
                 settings.action_cooldown_ms,
+                stride_ms=2000 if task.get("metadata", {}).get("analysis_mode") == "fast" else 1000,
             )
         except Exception:
             logger.exception("动作识别失败（task %s），回退启发式事件", task_id)
             action_events = []
     action_events.sort(key=lambda e: e["t_ms"])
+    action_seconds = perf_counter() - action_started
+    commentary_started = perf_counter()
 
     task_repo.update_task(
         task_id,
         stage="commentary",
-        progress=0.99,
+        progress=0.82,
         frames_done=frames_done,
         notify={
             "type": "progress",
             "stage": "commentary",
-            "progress": 0.99,
+            "progress": 0.82,
             "frames_done": frames_done,
             "frames_total": frames_total,
             "frame_step": frame_step,
@@ -259,14 +271,23 @@ def process_task(task: dict[str, Any], model: Any) -> None:
     if callable(close):
         close()
 
+    commentary_seconds = perf_counter() - commentary_started
+    narration_started = perf_counter()
+
     # 事件文件写完后，Agent 读取同一 task_id 的全部事件并保存整场解说。
-    task_repo.update_task(task_id, stage="narrating", progress=0.99,
-                          notify={"type": "progress", "stage": "narrating", "progress": 0.99})
+    task_repo.update_task(task_id, stage="narrating", progress=0.90,
+                          notify={"type": "progress", "stage": "narrating", "progress": 0.90})
     from worker.narration_service import run_task_narration
 
     narration = run_task_narration(task_id, events_path)
     task_repo.update_task_metadata(task_id, narration_status=narration["status"])
 
+    narration_seconds = perf_counter() - narration_started
+    task_repo.update_task_metadata(task_id, detection_seconds=round(detection_seconds, 3),
+                                   action_seconds=round(action_seconds, 3), commentary_seconds=round(commentary_seconds, 3),
+                                   narration_seconds=round(narration_seconds, 3))
+    logger.info("Task %s stage times: detection=%.2fs action=%.2fs commentary=%.2fs narration=%.2fs",
+                task_id, detection_seconds, action_seconds, commentary_seconds, narration_seconds)
     total_seconds = perf_counter() - started
     average_ms = (inference_seconds / frames_done) * 1000 if frames_done else None
     finished_at = datetime.now(UTC).isoformat()

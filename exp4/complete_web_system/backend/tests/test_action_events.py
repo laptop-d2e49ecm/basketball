@@ -103,3 +103,40 @@ def test_action_crop_uses_both_image_dimensions():
     left, top, right, bottom = _expand_square(0.5, 0.5, 0.05, 0.2, 1280, 720)
     assert right - left == bottom - top
     assert 170 <= right - left <= 175
+
+
+def test_fast_action_scan_uses_fewer_windows_without_changing_clip_length(tmp_path):
+    detections = tmp_path / "detections.jsonl"
+    _write_detections(detections, {1: list(range(0, 10000, 100))})
+    fine = FakeRecognizer([("_none", .9)] * 20)
+    fast = FakeRecognizer([("_none", .9)] * 20)
+    list(iter_action_events(detections, _loader, fine, stride_ms=1000))
+    list(iter_action_events(detections, _loader, fast, stride_ms=2000))
+    assert 0 < len(fast.calls) < len(fine.calls)
+    assert set(fast.calls) == set(fine.calls) == {10}
+
+
+def test_action_cache_separates_sampling_modes(tmp_path, monkeypatch):
+    from worker import action_service as module
+    paths = []
+    for name in ["video.mp4", "detections.jsonl", "model.onnx", "meta.json"]:
+        path = tmp_path / name; path.write_bytes(b"test"); paths.append(path)
+    class Recognizer:
+        def __init__(self, *args): pass
+        def is_available(self): return True
+    class Loader:
+        def __init__(self, *args): pass
+        def close(self): pass
+    calls = []
+    def events(*args, **kwargs):
+        calls.append(kwargs["stride_ms"])
+        yield {"t_ms": kwargs["stride_ms"]}
+    monkeypatch.setattr(module, "ActionRecognizer", Recognizer)
+    monkeypatch.setattr(module, "VideoFrameLoader", Loader)
+    monkeypatch.setattr(module, "iter_action_events", events)
+    cache = tmp_path / "cache"
+    detailed = module.recognize_video_actions(*paths, cache, .7, 8000, stride_ms=1000)
+    fast = module.recognize_video_actions(*paths, cache, .7, 8000, stride_ms=2000)
+    assert detailed != fast
+    assert module.recognize_video_actions(*paths, cache, .7, 8000, stride_ms=1000) == detailed
+    assert calls == [1000, 2000]
