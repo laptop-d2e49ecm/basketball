@@ -11,6 +11,8 @@ import {
 } from '../api/client'
 
 import AgentToolCalls from './AgentToolCalls.vue'
+import ChatImageInput from './ChatImageInput.vue'
+import type { ChatImage } from '../api/client'
 import NarrationSpeech from './NarrationSpeech.vue'
 import VideoNarration from './VideoNarration.vue'
 const exporting = ref(false)
@@ -43,7 +45,7 @@ async function downloadAudio(): Promise<void> {
   }
 }
 
-type ChatTurn = { role: 'user' | 'agent'; content: string; tool_calls?: AgentToolCall[]; pending?: boolean }
+type ChatTurn = { role: 'user' | 'agent'; content: string; tool_calls?: AgentToolCall[]; pending?: boolean; image?: ChatImage }
 type StripItem = { start_ms: number; end_ms: number; text: string; label: string }
 
 const route = useRoute()
@@ -60,6 +62,8 @@ const chatTurns = ref<ChatTurn[]>([])
 const sessionId = ref('')
 const chatDraft = ref('')
 const chatBusy = ref(false)
+const chatImage = ref<ChatImage | null>(null)
+const imageBusy = ref(false)
 const matchQuestion = ref('')
 const matchAnswer = ref('')
 const retryBusy = ref(false)
@@ -311,7 +315,7 @@ async function loadSession(id: string): Promise<void> {
     const result = await getAgentSession(id)
     if (result.task_id !== currentTaskId.value) return
     sessionId.value = id
-    chatTurns.value = result.history.map(item => ({ role: item.role, content: item.content, tool_calls: item.tool_calls }))
+    chatTurns.value = result.history.map(item => ({ role: item.role, content: item.content, tool_calls: item.tool_calls, image: item.image }))
     historyOpen.value = false
   } catch (error) { chatError.value = error instanceof Error ? error.message : '对话读取失败' }
 }
@@ -323,18 +327,20 @@ async function reloadSessions(id: string, restore = false): Promise<void> {
     if (restore && sessions.value.length) await loadSession(sessions.value[0]!.session_id)
   } catch (error) { chatError.value = error instanceof Error ? error.message : '对话历史读取失败' }
 }
-function newChat(): void { sessionId.value = ''; chatTurns.value = []; chatDraft.value = ''; chatError.value = ''; historyOpen.value = false }
+function newChat(): void { chatImage.value = null; sessionId.value = ''; chatTurns.value = []; chatDraft.value = ''; chatError.value = ''; historyOpen.value = false }
 async function sendChat(text?: string): Promise<string | undefined> {
-  const question = (text ?? chatDraft.value).trim()
-  if (!question || chatBusy.value || !currentTaskId.value) return
+  const image = text === undefined ? chatImage.value : null
+  const question = (text ?? chatDraft.value).trim() || (image ? '请检测这张图片中的球员人数。' : '')
+  if (!question || chatBusy.value || imageBusy.value || !currentTaskId.value) return
   if (text === undefined) chatDraft.value = ''
   chatError.value = ''; chatBusy.value = true
   const taskId = currentTaskId.value
-  chatTurns.value.push({ role: 'user', content: question })
+  chatTurns.value.push({ role: 'user', content: question, ...(image ? { image } : {}) })
+  if (image) chatImage.value = null
   const pending = reactive<ChatTurn>({ role: 'agent', content: 'AI 正在思考…', pending: true })
   chatTurns.value.push(pending)
   try {
-    const result = await agentChat({ task_id: taskId, message: question, ...(sessionId.value ? { session_id: sessionId.value } : {}) })
+    const result = await agentChat({ task_id: taskId, message: question, ...(image ? { image_id: image.id } : {}), ...(sessionId.value ? { session_id: sessionId.value } : {}) })
     if (taskId !== currentTaskId.value) return
     pending.content = result.agent; pending.tool_calls = result.tool_calls; pending.pending = false
     sessionId.value = result.session_id
@@ -344,6 +350,7 @@ async function sendChat(text?: string): Promise<string | undefined> {
     if (taskId !== currentTaskId.value) return
     pending.content = error instanceof Error ? error.message : 'AI 暂时无法回答'
     pending.pending = false; chatError.value = '发送失败，可以重试。'
+    if (image) { chatImage.value = image; chatDraft.value = question }
       return pending.content
   } finally { if (taskId === currentTaskId.value) chatBusy.value = false }
 }
@@ -383,7 +390,7 @@ async function openRoute(): Promise<void> {
   const token = generation
   stopTimers(); pageError.value = ''; task.value = null; events.value = []; narration.value = null
   matchAnswer.value = ''; matchQuestion.value = ''; retryBusy.value = false; chatBusy.value = false; chatError.value = ''; chatDraft.value = ''
-  sessions.value = []; chatTurns.value = []; sessionId.value = ''; historyOpen.value = false
+  sessions.value = []; chatTurns.value = []; sessionId.value = ''; historyOpen.value = false; chatImage.value = null; imageBusy.value = false
   videoSource.value = ''; currentTime.value = 0; duration.value = 0; detections.value = []; frameWindow.value = -1
   void reloadTasks()
   if (view.value === 'analyzing') {
@@ -585,7 +592,7 @@ onBeforeUnmount(() => { clearFile(); stopTimers(); window.removeEventListener('r
       <nav class="cv-console-top" aria-label="工作台导航"><RouterLink to="/" class="cv-brand"><span class="cv-ball">◉</span><b>COURTVISION</b></RouterLink><RouterLink to="/" class="cv-btn cv-outline cv-return-home">← 返回主页</RouterLink><div class="cv-console-actions"><button class="cv-btn cv-outline" @click="router.push('/recent')">最近任务 <span class="cv-count">{{ tasks.length }}</span></button><button class="cv-btn cv-outline" :disabled="!narration?.text" @click="videoElement?.pause(); audioError = ''; exporting = true; exportDialog?.showModal()">导出解说</button><button class="cv-btn cv-primary" @click="chooseVideo">重新分析</button></div></nav>
       <div class="cv-console-grid"><section class="cv-frame-panel cv-panel"><header>画面帧 <span>随播放滚动</span></header><div ref="frameElement" class="cv-frame-list"><button v-for="(frame, index) in keyFrames" :key="`${frame.t_ms}-${index}`" class="cv-frame" :class="{ active: index === activeFrameIndex }" @click="jumpTo(frame.t_ms)"><img :src="frameUrl(frame.t_ms)" alt="事件附近视频帧"><span>{{ clock(frame.t_ms / 1000) }}</span></button><p v-if="!keyFrames.length" class="cv-panel-empty">暂无关键帧</p></div></section>
         <section class="cv-video-panel cv-panel"><div class="cv-video-stage"><video ref="videoElement" :src="videoSource" playsinline preload="metadata" @loadedmetadata="duration = videoElement?.duration || 0; applyPlaybackRate(); drawBoxes()" @timeupdate="onVideoTime" @play="playing = true" @pause="playing = false" @error="onVideoError"></video><canvas ref="overlayCanvas" class="cv-overlay"></canvas><button class="cv-box-toggle" :aria-pressed="showBoxes" @click="toggleBoxes">检测框 <span :class="{ on: showBoxes }"></span></button><div class="cv-live"><i></i> 分析结果</div><div v-if="currentCaption" class="cv-subtitle"><b>{{ clock(currentTime) }}</b><span>{{ currentCaption }}</span></div><div v-if="previewMessage" class="cv-preview-message">{{ previewMessage }}</div></div><div class="cv-video-controls"><button class="cv-play" :aria-label="playing ? '暂停' : '播放'" @click="togglePlayback">{{ playing ? 'Ⅱ' : '▶' }}</button><select v-model.number="playbackRate" class="cv-playback-rate" aria-label="视频倍速" title="视频倍速" @change="applyPlaybackRate"><option v-for="rate in playbackRates" :key="rate" :value="rate">{{ rate }}×</option></select><VideoNarration :key="currentTaskId" :video="videoElement" :cues="voiceCues" :segmented="voiceSections" :url="audioUrl" :revision="narration?.created_at || ''" /><span>{{ clock(currentTime) }} / {{ clock(duration) }}</span><div class="cv-seek" role="slider" tabindex="0" aria-label="视频进度" :aria-valuenow="Math.round(currentTime)" :aria-valuemax="Math.round(duration)" @click="seek" @keydown.left.prevent="jumpTo((currentTime - 5) * 1000)" @keydown.right.prevent="jumpTo((currentTime + 5) * 1000)"><div class="cv-seek-fill" :style="{ width: pinPosition(currentTime * 1000) }"></div><button v-for="(item, index) in stripItems" :key="`${item.start_ms}-${index}`" class="cv-seek-node" :class="{ active: item.start_ms === stripItems[activeStripIndex]?.start_ms }" :style="{ left: pinPosition(item.start_ms) }" :title="clock(item.start_ms / 1000)" @click.stop="jumpTo(item.start_ms)"></button></div><span>{{ countNow === null ? '—' : `${countNow} 人` }}</span></div></section>
-        <section class="cv-chat-panel cv-panel"><header>AI 对话 <button class="cv-history-trigger" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen">对话历史</button><span>当前视频</span></header><div v-if="historyOpen" class="cv-history"><div class="cv-history-head"><b>对话历史</b><button @click="historyOpen = false">×</button></div><button class="cv-btn cv-primary" @click="newChat">＋ 新建对话</button><button v-for="item in sessions" :key="item.session_id" class="cv-history-item" @click="loadSession(item.session_id)"><b>{{ item.title }}</b><small>{{ timeLabel(item.updated_at) }} · {{ item.message_count }} 条消息</small></button><p v-if="!sessions.length">暂无对话记录</p></div><div v-else class="cv-chat-content"><div class="cv-messages"><div v-if="!chatTurns.length" class="cv-chat-welcome"><span>✦</span><b>和 AI 聊聊这场球</b><p>提问会关联当前视频的真实事件，回答不会直接把模型预测当成进球事实。</p></div><div v-for="(turn, index) in chatTurns" :key="index" class="cv-message" :class="turn.role"><p>{{ turn.content }}</p><AgentToolCalls v-if="turn.tool_calls?.length" :calls="turn.tool_calls" /></div></div><div class="cv-quick"><button @click="askQuick('总结这段比赛的关键事件')">总结比赛</button><button @click="askQuick('人数变化最大的时段是什么时候？')">人数变化</button><button @click="askQuick('有哪些疑似三分出手？')">三分出手</button></div><form class="cv-chat-compose" @submit.prevent="sendChat()"><input v-model="chatDraft" maxlength="500" placeholder="就这场比赛继续提问…" aria-label="向 AI 提问"><button :disabled="chatBusy || !chatDraft.trim()" aria-label="发送">↑</button></form><small v-if="chatError" class="cv-chat-error">{{ chatError }}</small></div></section>
+        <section class="cv-chat-panel cv-panel"><header>AI 对话 <button class="cv-history-trigger" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen">对话历史</button><span>当前视频</span></header><div v-if="historyOpen" class="cv-history"><div class="cv-history-head"><b>对话历史</b><button @click="historyOpen = false">×</button></div><button class="cv-btn cv-primary" @click="newChat">＋ 新建对话</button><button v-for="item in sessions" :key="item.session_id" class="cv-history-item" @click="loadSession(item.session_id)"><b>{{ item.title }}</b><small>{{ timeLabel(item.updated_at) }} · {{ item.message_count }} 条消息</small></button><p v-if="!sessions.length">暂无对话记录</p></div><div v-else class="cv-chat-content"><div class="cv-messages"><div v-if="!chatTurns.length" class="cv-chat-welcome"><span>✦</span><b>和 AI 聊聊这场球</b><p>提问会关联当前视频的真实事件，回答不会直接把模型预测当成进球事实。</p></div><div v-for="(turn, index) in chatTurns" :key="index" class="cv-message" :class="turn.role"><img v-if="turn.image" class="cv-chat-sent-image" :src="turn.image.url" :alt="turn.image.name || '问题附图'"><p>{{ turn.content }}</p><AgentToolCalls v-if="turn.tool_calls?.length" :calls="turn.tool_calls" /></div></div><div class="cv-quick"><button @click="askQuick('总结这段比赛的关键事件')">总结比赛</button><button @click="askQuick('人数变化最大的时段是什么时候？')">人数变化</button><button @click="askQuick('有哪些疑似三分出手？')">三分出手</button></div><ChatImageInput v-model="chatImage" :task-id="currentTaskId" :current-time="currentTime" :frames="keyFrames.map(frame => frame.t_ms)" :disabled="chatBusy" @busy="imageBusy = $event" /><form class="cv-chat-compose" @submit.prevent="sendChat()"><input v-model="chatDraft" maxlength="500" placeholder="就这场比赛继续提问…" aria-label="向 AI 提问"><button :disabled="chatBusy || imageBusy || (!chatDraft.trim() && !chatImage)" aria-label="发送">↑</button></form><small v-if="chatError" class="cv-chat-error">{{ chatError }}</small></div></section>
       <section class="cv-commentary cv-panel" aria-label="赛事解说"><div class="cv-ruler" @click="seek"><div class="cv-ruler-fill" :style="{ width: pinPosition(currentTime * 1000) }"></div><span v-for="(item, index) in stripItems" :key="index" class="cv-ruler-node" :class="{ active: item.start_ms === stripItems[activeStripIndex]?.start_ms }" :style="{ left: pinPosition(item.start_ms) }" @click.stop="jumpTo(item.start_ms)"></span></div><div class="cv-ruler-labels"><span v-for="tick in [0, .25, .5, .75, 1]" :key="tick">{{ clock(duration * tick) }}</span></div><div ref="stripElement" class="cv-strip"><button v-for="(item, index) in stripItems" :key="`${item.start_ms}-${index}`" class="cv-strip-card" :class="{ active: index === activeStripIndex }" @click="jumpTo(item.start_ms)"><time>{{ clock(item.start_ms / 1000) }}</time><span>{{ item.text }}</span><small>{{ item.label }}</small></button><p v-if="!stripItems.length">暂无解说，等待视频分析结果。</p></div></section></div>
       <section class="cv-panel cv-match-report" aria-label="整场 AI 解说">
         <header>✦ 整场 AI 解说 <div class="cv-report-tools"><small role="status">{{ copyNotice }}</small><button class="cv-btn cv-outline" :disabled="!narration?.text" @click="copyNarration">复制全文</button><span>{{ narrationStatus }}</span></div></header>

@@ -12,9 +12,15 @@ import json
 import logging
 import re
 import time
+import io
+import uuid
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, File, Form, UploadFile
+from fastapi.responses import FileResponse
+from PIL import Image, ImageOps, UnidentifiedImageError
+from app.core.config import settings
 from pydantic import BaseModel, Field
 
 from app.core.errors import ModelError, NotFoundError
@@ -31,6 +37,57 @@ class AgentChatRequest(BaseModel):
     session_id: str | None = None
     task_id: str | None = None
     message: str = Field(min_length=1, max_length=500)
+    image_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+
+
+def _chat_image_path(task_id: str, image_id: str) -> Path:
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", task_id) or not re.fullmatch(r"[a-f0-9]{32}", image_id):
+        raise HTTPException(status_code=400, detail="图片标识无效")
+    if task_repo.get_task(task_id) is None:
+        raise NotFoundError("视频任务不存在")
+    root = settings.runs_dir.resolve()
+    path = (root / task_id / "chat_images" / f"{image_id}.jpg").resolve()
+    if not path.is_relative_to(root):
+        raise HTTPException(status_code=400, detail="图片目录无效")
+    return path
+
+
+def _image_record(task_id: str, image_id: str) -> dict[str, str]:
+    path = _chat_image_path(task_id, image_id)
+    if not path.is_file():
+        raise NotFoundError("图片不存在，请重新上传或选取")
+    return {"id": image_id, "url": f"/api/v1/agent/images/{task_id}/{image_id}"}
+
+
+@router.post("/agent/images", response_model=ApiEnvelope[dict[str, Any]])
+def upload_chat_image(task_id: str = Form(...), file: UploadFile = File(...)) -> ApiEnvelope[dict[str, Any]]:
+    image_id = uuid.uuid4().hex
+    path = _chat_image_path(task_id, image_id)
+    try:
+        data = file.file.read(10 * 1024 * 1024 + 1)
+        if len(data) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="图片不能超过 10 MB")
+        try:
+            with Image.open(io.BytesIO(data)) as source:
+                if source.format not in {"JPEG", "PNG", "WEBP"}:
+                    raise HTTPException(status_code=400, detail="请上传 JPG、PNG 或 WebP 图片")
+                if source.width * source.height > 20_000_000:
+                    raise HTTPException(status_code=400, detail="图片像素过大，请缩小后上传")
+                image = ImageOps.exif_transpose(source).convert("RGB")
+                image.thumbnail((2560, 2560))
+                path.parent.mkdir(parents=True, exist_ok=True)
+                image.save(path, format="JPEG", quality=92)
+        except (UnidentifiedImageError, OSError, Image.DecompressionBombError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="图片无法读取，请换一张图片") from exc
+        return ApiEnvelope(result={**_image_record(task_id, image_id), "name": Path(file.filename or "图片").name})
+    finally:
+        file.file.close()
+
+
+@router.get("/agent/images/{task_id}/{image_id}")
+def get_chat_image(task_id: str, image_id: str) -> FileResponse:
+    _image_record(task_id, image_id)
+    return FileResponse(_chat_image_path(task_id, image_id), media_type="image/jpeg")
 
 
 @router.get("/agent/sessions", response_model=ApiEnvelope[list[dict[str, Any]]])
@@ -65,12 +122,20 @@ def _get_agent(request: Request):
     return agent
 
 
-def _history_to_messages(history: list[dict[str, Any]]) -> list[dict[str, str]]:
+def _history_to_messages(history: list[dict[str, Any]], task_id: str | None = None) -> list[dict[str, str]]:
     """存储格式（user/agent）转模型输入格式（user/assistant），工具过程不回传模型。"""
     messages = []
     for item in history:
         role = "user" if item.get("role") == "user" else "assistant"
         content = str(item.get("content", ""))
+        image = item.get("image")
+        if role == "user" and task_id and isinstance(image, dict):
+            try:
+                path = _chat_image_path(task_id, str(image.get("id", "")))
+                if path.is_file():
+                    content += f"\n本轮附图的工具路径：{path}。图片问题请使用 player_detect 或 image_text_match。"
+            except (HTTPException, NotFoundError):
+                pass
         if content:
             messages.append({"role": role, "content": content})
     return messages
@@ -142,9 +207,16 @@ def agent_chat(payload: AgentChatRequest, request: Request) -> ApiEnvelope[dict[
         session_id = agent_sessions.new_session(task_id)
         history = []
 
+    image = None
+    image_context = ""
+    if payload.image_id:
+        if not task_id:
+            raise HTTPException(status_code=400, detail="图片需关联当前视频任务")
+        image = _image_record(task_id, payload.image_id)
+        image_context = f"\n用户附图的工具路径：{_chat_image_path(task_id, payload.image_id)}。询问图片人数时调用 player_detect，询问图文是否匹配时调用 image_text_match，image_path 使用此路径。不要将视频事件当成这张图片的检测结果。"
     agent = _get_agent(request)
-    task_context = f"当前视频任务编号为 {task_id}。回答本轮问题前，先调用 query_video_events 查询该任务的事件，并以查询结果为依据。\n" if task_id else ""
-    messages = _history_to_messages(history) + [{"role": "user", "content": task_context + payload.message}]
+    task_context = f"当前视频任务编号为 {task_id}。询问该视频事件时，先调用 query_video_events 并以查询结果为依据。\n" if task_id else ""
+    messages = _history_to_messages(history, task_id) + [{"role": "user", "content": task_context + payload.message + image_context}]
 
     try:
         result = agent.invoke({"messages": messages})
@@ -168,7 +240,7 @@ def agent_chat(payload: AgentChatRequest, request: Request) -> ApiEnvelope[dict[
     agent_sessions.append_history(
         session_id,
         [
-            {"role": "user", "content": payload.message},
+            {"role": "user", "content": payload.message, **({"image": image} if image else {})},
             {"role": "agent", "content": final, "tool_calls": trace},
         ],
     )
