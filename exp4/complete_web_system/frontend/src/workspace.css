@@ -128,3 +128,11 @@
 .cv-frame.selectable { outline:1px dashed #ee85b7; }
 .cv-frame.selected { outline:2px solid #ee85b7; background:#4a2c41; }
 .cv-frame-select-hint,.cv-selecting-hint { color:#e4adc9; padding:4px 12px; font-size:11px; margin:4px 0; }
+
+.cv-video-enlarge { flex:none; border:1px solid #65475a; border-radius:5px; padding:4px 7px; background:#2b2029; color:#f5c5dd; font:inherit; cursor:pointer; }
+.cv-video-panel:fullscreen,.cv-video-panel.cv-video-expanded { width:100vw; height:100vh; height:100dvh; max-width:none; max-height:none; margin:0; border:0; border-radius:0; background:#050505; display:flex; flex-direction:column; }
+.cv-video-panel.cv-video-expanded { position:fixed; inset:0; z-index:200; }
+.cv-video-panel:fullscreen .cv-video-stage,.cv-video-panel.cv-video-expanded .cv-video-stage { flex:1 1 0; aspect-ratio:auto; min-height:0; }
+.cv-video-panel:fullscreen video,.cv-video-panel.cv-video-expanded video { position:absolute; inset:0; max-height:none; object-fit:contain; }
+.cv-video-panel:fullscreen .cv-video-controls,.cv-video-panel.cv-video-expanded .cv-video-controls { flex:0 0 auto; min-height:46px; }
+@media(max-width:520px) { .cv-video-controls { flex-wrap:wrap; height:auto; min-height:42px; padding-block:6px; } .cv-video-controls .cv-seek { order:1; flex-basis:100%; } }

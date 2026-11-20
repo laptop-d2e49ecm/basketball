@@ -81,6 +81,11 @@ const showUpload = ref(false)
 const selectedFile = ref<File | null>(null)
 const videoName = ref('')
 const videoElement = ref<HTMLVideoElement | null>(null)
+const videoPanel = ref<HTMLElement | null>(null)
+const nativeVideoFullscreen = ref(false)
+const expandedVideo = ref(false)
+const fullscreenBusy = ref(false)
+const videoIsEnlarged = computed(() => nativeVideoFullscreen.value || expandedVideo.value)
 const overlayCanvas = ref<HTMLCanvasElement | null>(null)
 const stripElement = ref<HTMLDivElement | null>(null)
 const frameElement = ref<HTMLDivElement | null>(null)
@@ -572,10 +577,40 @@ async function clearHistory(): Promise<void> {
     clearProgress.value = ''
   }
 }
+function onFullscreenChange(): void {
+  nativeVideoFullscreen.value = !!videoPanel.value && document.fullscreenElement === videoPanel.value
+  void nextTick(drawBoxes)
+}
+async function leaveVideoExpanded(): Promise<void> {
+  expandedVideo.value = false
+  if (videoPanel.value && document.fullscreenElement === videoPanel.value) {
+    try { await document.exitFullscreen() } catch { }
+  }
+}
+async function toggleVideoSize(): Promise<void> {
+  if (!videoPanel.value || fullscreenBusy.value) return
+  fullscreenBusy.value = true
+  try {
+    if (videoIsEnlarged.value) { await leaveVideoExpanded(); return }
+    if (videoPanel.value.requestFullscreen) {
+      try { await videoPanel.value.requestFullscreen(); onFullscreenChange(); return } catch { }
+    }
+    expandedVideo.value = true
+  } finally { fullscreenBusy.value = false; void nextTick(drawBoxes) }
+}
+function onVideoEscape(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && expandedVideo.value) void leaveVideoExpanded()
+}
+watch(expandedVideo, (expanded, _, clean) => {
+  if (!expanded) return
+  const previous = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
+  clean(() => { document.body.style.overflow = previous })
+})
 function onResize(): void { drawBoxes() }
-watch(() => route.fullPath, () => { void openRoute() }, { immediate: true })
-onMounted(() => { window.addEventListener('resize', onResize) })
-onBeforeUnmount(() => { clearFile(); stopTimers(); window.removeEventListener('resize', onResize); if (localVideoUrl) URL.revokeObjectURL(localVideoUrl) })
+watch(() => route.fullPath, () => { void leaveVideoExpanded(); void openRoute() }, { immediate: true })
+onMounted(() => { window.addEventListener('resize', onResize); document.addEventListener('fullscreenchange', onFullscreenChange); window.addEventListener('keydown', onVideoEscape) })
+onBeforeUnmount(() => { void leaveVideoExpanded(); document.removeEventListener('fullscreenchange', onFullscreenChange); window.removeEventListener('keydown', onVideoEscape); clearFile(); stopTimers(); window.removeEventListener('resize', onResize); if (localVideoUrl) URL.revokeObjectURL(localVideoUrl) })
 </script>
 
 <template>
@@ -600,7 +635,7 @@ onBeforeUnmount(() => { clearFile(); stopTimers(); window.removeEventListener('r
     <main v-else class="cv-console">
       <nav class="cv-console-top" aria-label="工作台导航"><RouterLink to="/" class="cv-brand"><span class="cv-ball">◉</span><b>COURTVISION</b></RouterLink><RouterLink to="/" class="cv-btn cv-outline cv-return-home">← 返回主页</RouterLink><div class="cv-console-actions"><button class="cv-btn cv-outline" @click="router.push('/recent')">最近任务 <span class="cv-count">{{ tasks.length }}</span></button><button class="cv-btn cv-outline" :disabled="!narration?.text" @click="videoElement?.pause(); audioError = ''; exporting = true; exportDialog?.showModal()">导出解说</button><button class="cv-btn cv-primary" @click="chooseVideo">重新分析</button></div></nav>
       <div class="cv-console-grid"><section class="cv-frame-panel cv-panel"><header>画面帧 <span>{{ selectingFrames ? '点击画面选择' : '随播放滚动' }}</span></header><p v-if="selectingFrames" class="cv-frame-select-hint">可选多张，选好后点击聊天框的发送。</p><div ref="frameElement" class="cv-frame-list"><button v-for="(frame, index) in keyFrames" :key="`${frame.t_ms}-${index}`" class="cv-frame" :class="{ active: index === activeFrameIndex, selectable: selectingFrames, selected: chatImages.some(image => image.frame_ms === Math.floor(frame.t_ms / 1000) * 1000) }" :disabled="selectingFrames && (chatBusy || imageBusy)" :aria-label="selectingFrames ? `选择 ${clock(frame.t_ms / 1000)} 画面` : `跳转到 ${clock(frame.t_ms / 1000)}`" @click="selectingFrames ? useFrameInChat(frame.t_ms) : jumpTo(frame.t_ms)"><img :src="frameUrl(frame.t_ms)" alt="事件附近视频帧"><span>{{ clock(frame.t_ms / 1000) }}</span></button><p v-if="!keyFrames.length" class="cv-panel-empty">暂无关键帧</p></div></section>
-        <section class="cv-video-panel cv-panel"><div class="cv-video-stage"><video ref="videoElement" :src="videoSource" playsinline preload="metadata" @loadedmetadata="duration = videoElement?.duration || 0; applyPlaybackRate(); drawBoxes()" @timeupdate="onVideoTime" @play="playing = true" @pause="playing = false" @error="onVideoError"></video><canvas ref="overlayCanvas" class="cv-overlay"></canvas><button class="cv-box-toggle" :aria-pressed="showBoxes" @click="toggleBoxes">检测框 <span :class="{ on: showBoxes }"></span></button><div class="cv-live"><i></i> 分析结果</div><div v-if="currentCaption" class="cv-subtitle"><b>{{ clock(currentTime) }}</b><span>{{ currentCaption }}</span></div><div v-if="previewMessage" class="cv-preview-message">{{ previewMessage }}</div></div><div class="cv-video-controls"><button class="cv-play" :aria-label="playing ? '暂停' : '播放'" @click="togglePlayback">{{ playing ? 'Ⅱ' : '▶' }}</button><select v-model.number="playbackRate" class="cv-playback-rate" aria-label="视频倍速" title="视频倍速" @change="applyPlaybackRate"><option v-for="rate in playbackRates" :key="rate" :value="rate">{{ rate }}×</option></select><VideoNarration :key="currentTaskId" :video="videoElement" :cues="voiceCues" :segmented="voiceSections" :url="audioUrl" :revision="narration?.created_at || ''" /><span>{{ clock(currentTime) }} / {{ clock(duration) }}</span><div class="cv-seek" role="slider" tabindex="0" aria-label="视频进度" :aria-valuenow="Math.round(currentTime)" :aria-valuemax="Math.round(duration)" @click="seek" @keydown.left.prevent="jumpTo((currentTime - 5) * 1000)" @keydown.right.prevent="jumpTo((currentTime + 5) * 1000)"><div class="cv-seek-fill" :style="{ width: pinPosition(currentTime * 1000) }"></div><button v-for="(item, index) in stripItems" :key="`${item.start_ms}-${index}`" class="cv-seek-node" :class="{ active: item.start_ms === stripItems[activeStripIndex]?.start_ms }" :style="{ left: pinPosition(item.start_ms) }" :title="clock(item.start_ms / 1000)" @click.stop="jumpTo(item.start_ms)"></button></div><span>{{ countNow === null ? '—' : `${countNow} 人` }}</span></div></section>
+        <section ref="videoPanel" class="cv-video-panel cv-panel" :class="{ 'cv-video-expanded': expandedVideo }"><div class="cv-video-stage"><video ref="videoElement" :src="videoSource" playsinline preload="metadata" @loadedmetadata="duration = videoElement?.duration || 0; applyPlaybackRate(); drawBoxes()" @timeupdate="onVideoTime" @play="playing = true" @pause="playing = false" @error="onVideoError"></video><canvas ref="overlayCanvas" class="cv-overlay"></canvas><button class="cv-box-toggle" :aria-pressed="showBoxes" @click="toggleBoxes">检测框 <span :class="{ on: showBoxes }"></span></button><div class="cv-live"><i></i> 分析结果</div><div v-if="currentCaption" class="cv-subtitle"><b>{{ clock(currentTime) }}</b><span>{{ currentCaption }}</span></div><div v-if="previewMessage" class="cv-preview-message">{{ previewMessage }}</div></div><div class="cv-video-controls"><button class="cv-play" :aria-label="playing ? '暂停' : '播放'" @click="togglePlayback">{{ playing ? 'Ⅱ' : '▶' }}</button><select v-model.number="playbackRate" class="cv-playback-rate" aria-label="视频倍速" title="视频倍速" @change="applyPlaybackRate"><option v-for="rate in playbackRates" :key="rate" :value="rate">{{ rate }}×</option></select><VideoNarration :key="currentTaskId" :video="videoElement" :cues="voiceCues" :segmented="voiceSections" :url="audioUrl" :revision="narration?.created_at || ''" /><span>{{ clock(currentTime) }} / {{ clock(duration) }}</span><div class="cv-seek" role="slider" tabindex="0" aria-label="视频进度" :aria-valuenow="Math.round(currentTime)" :aria-valuemax="Math.round(duration)" @click="seek" @keydown.left.prevent="jumpTo((currentTime - 5) * 1000)" @keydown.right.prevent="jumpTo((currentTime + 5) * 1000)"><div class="cv-seek-fill" :style="{ width: pinPosition(currentTime * 1000) }"></div><button v-for="(item, index) in stripItems" :key="`${item.start_ms}-${index}`" class="cv-seek-node" :class="{ active: item.start_ms === stripItems[activeStripIndex]?.start_ms }" :style="{ left: pinPosition(item.start_ms) }" :title="clock(item.start_ms / 1000)" @click.stop="jumpTo(item.start_ms)"></button></div><span>{{ countNow === null ? '—' : `${countNow} 人` }}</span><button type="button" class="cv-video-enlarge" :disabled="fullscreenBusy" :aria-label="videoIsEnlarged ? '退出放大' : '放大观看'" :aria-pressed="videoIsEnlarged" :title="videoIsEnlarged ? '退出放大（Esc）' : '放大观看'" @click="toggleVideoSize">{{ videoIsEnlarged ? '退出放大' : '放大观看' }}</button></div></section>
         <section class="cv-chat-panel cv-panel"><header>AI 对话 <button class="cv-history-trigger" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen">对话历史</button><span>当前视频</span></header><div v-if="historyOpen" class="cv-history"><div class="cv-history-head"><b>对话历史</b><button @click="historyOpen = false">×</button></div><button class="cv-btn cv-primary" @click="newChat">＋ 新建对话</button><button v-for="item in sessions" :key="item.session_id" class="cv-history-item" @click="loadSession(item.session_id)"><b>{{ item.title }}</b><small>{{ timeLabel(item.updated_at) }} · {{ item.message_count }} 条消息</small></button><p v-if="!sessions.length">暂无对话记录</p></div><div v-else class="cv-chat-content"><div class="cv-messages"><div v-if="!chatTurns.length" class="cv-chat-welcome"><span>✦</span><b>和 AI 聊聊这场球</b><p>提问会关联当前视频的真实事件，回答不会直接把模型预测当成进球事实。</p></div><div v-for="(turn, index) in chatTurns" :key="index" class="cv-message" :class="turn.role"><div v-if="turn.images?.length || turn.image" class="cv-chat-sent-images"><img v-for="(image, imageIndex) in turn.images || (turn.image ? [turn.image] : [])" :key="image.id" class="cv-chat-sent-image" :src="image.url" :alt="`问题附图 ${imageIndex + 1}`"></div><p>{{ turn.content }}</p><AgentToolCalls v-if="turn.tool_calls?.length" :calls="turn.tool_calls" /></div></div><div class="cv-quick"><button @click="askQuick('总结这段比赛的关键事件')">总结比赛</button><button @click="askQuick('人数变化最大的时段是什么时候？')">人数变化</button><button @click="askQuick('有哪些疑似三分出手？')">三分出手</button></div><ChatImageInput ref="chatImageInput" v-model="chatImages" :task-id="currentTaskId" :disabled="chatBusy" @busy="imageBusy = $event" /><p v-if="selectingFrames" class="cv-selecting-hint">请在左侧选择画面（{{ chatImages.length }}/6），点击“＋”可结束选图。</p><form class="cv-chat-compose" @submit.prevent="sendChat()"><button type="button" class="cv-chat-add-frame" aria-label="添加画面帧" :aria-pressed="selectingFrames" :disabled="chatBusy || imageBusy" @click="selectingFrames = !selectingFrames">＋</button><input v-model="chatDraft" maxlength="500" placeholder="就这场比赛继续提问…" aria-label="向 AI 提问"><button :disabled="chatBusy || imageBusy || (!chatDraft.trim() && !chatImages.length)" aria-label="发送">↑</button></form><small v-if="chatError" class="cv-chat-error">{{ chatError }}</small></div></section>
       <section class="cv-commentary cv-panel" aria-label="赛事解说"><div class="cv-ruler" @click="seek"><div class="cv-ruler-fill" :style="{ width: pinPosition(currentTime * 1000) }"></div><span v-for="(item, index) in stripItems" :key="index" class="cv-ruler-node" :class="{ active: item.start_ms === stripItems[activeStripIndex]?.start_ms }" :style="{ left: pinPosition(item.start_ms) }" @click.stop="jumpTo(item.start_ms)"></span></div><div class="cv-ruler-labels"><span v-for="tick in [0, .25, .5, .75, 1]" :key="tick">{{ clock(duration * tick) }}</span></div><div ref="stripElement" class="cv-strip"><button v-for="(item, index) in stripItems" :key="`${item.start_ms}-${index}`" class="cv-strip-card" :class="{ active: index === activeStripIndex }" @click="jumpTo(item.start_ms)"><time>{{ clock(item.start_ms / 1000) }}</time><span>{{ item.text }}</span><small>{{ item.label }}</small></button><p v-if="!stripItems.length">暂无解说，等待视频分析结果。</p></div></section></div>
       <section class="cv-panel cv-match-report" aria-label="整场 AI 解说">
