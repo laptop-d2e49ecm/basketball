@@ -91,7 +91,7 @@ def test_dynamic_mp3_settings_and_cache(tmp_path, monkeypatch):
     calls = []
 
     class Voice:
-        def __init__(self, text, voice, rate, pitch):
+        def __init__(self, text, voice, rate, pitch, **options):
             calls.append((rate, pitch))
 
         async def stream(self):

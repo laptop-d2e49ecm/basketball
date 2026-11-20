@@ -7,6 +7,9 @@ import logging
 import os
 import re
 import threading
+import time
+from urllib.request import getproxies
+from urllib.parse import urlsplit
 from pathlib import Path
 
 logger = logging.getLogger("basketball-tts")
@@ -20,6 +23,25 @@ DEFAULT_CLIMAX_RATE = "+35%"
 DEFAULT_CLIMAX_PITCH = "+25Hz"
 _SENTENCE_SPLIT = re.compile(r"(?<=[。！？!?；;])\s*")
 _SYNTH_LOCK = threading.Lock()
+_REQUEST_TIMEOUT = 90
+_RETRY_DELAY = 0.3
+
+
+def _speech_proxy() -> str | None:
+    """WebSocket speech requests need the Windows HTTP proxy passed explicitly."""
+    configured = os.getenv("BASKETBALL_TTS_PROXY", "auto").strip()
+    if configured.lower() in {"direct", "none", "off"}:
+        return None
+    if not configured or configured.lower() == "auto":
+        proxies = getproxies()
+        configured = proxies.get("wss") or proxies.get("https") or proxies.get("http") or proxies.get("all") or ""
+    if not configured:
+        return None
+    if "://" not in configured:
+        configured = "http://" + configured
+    if urlsplit(configured).scheme.lower() not in {"http", "https"}:
+        raise RuntimeError("语音代理需为 HTTP 或 HTTPS 地址")
+    return configured
 
 
 def narration_text(narration_path: Path) -> str:
@@ -78,6 +100,7 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
         except ImportError as exc:  # 依赖未装不应让接口 500，交给上层转 503
             raise RuntimeError("语音合成依赖未安装：请执行 pip install edge-tts 后重试") from exc
         chunks = _prosody_chunks(text)
+        proxy = _speech_proxy()
 
         def _run() -> bytes:
             async def _collect() -> bytes:
@@ -88,6 +111,9 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
                         voice,
                         rate=climax_rate if climax else rate,
                         pitch=climax_pitch if climax else "+0Hz",
+                        proxy=proxy,
+                        connect_timeout=8,
+                        receive_timeout=20,
                     )
                     start = len(data)
                     async for piece in communicate.stream():
@@ -97,12 +123,19 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
                         raise RuntimeError("部分解说未返回语音，请稍后重试")
                 return bytes(data)
 
-            return asyncio.run(_collect())
+            async def _bounded() -> bytes:
+                return await asyncio.wait_for(_collect(), timeout=_REQUEST_TIMEOUT)
+            return asyncio.run(_bounded())
 
-        try:
-            data = _run()
-        except Exception as exc:
-            raise RuntimeError("无法连接在线语音服务，请检查网络后重试") from exc
+        for attempt in range(2):
+            try:
+                data = _run()
+                break
+            except Exception as exc:
+                logger.warning("在线语音请求失败（%s），%s", type(exc).__name__, "重试一次" if attempt == 0 else "停止重试")
+                if attempt == 1:
+                    raise RuntimeError("无法连接在线语音服务，请检查系统代理或网络后重试") from exc
+                time.sleep(_RETRY_DELAY)
         if not data:
             raise RuntimeError("语音合成返回空音频，请检查网络后重试")
         temporary = audio_path.with_suffix(".mp3.tmp")

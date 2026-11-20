@@ -16,8 +16,8 @@ def _fake_edge_tts(monkeypatch, payload: bytes = b"ID3-audio"):
     calls: list[dict[str, str]] = []
 
     class FakeCommunicate:
-        def __init__(self, text: str, voice: str, rate: str, pitch: str):
-            calls.append({"text": text, "voice": voice, "rate": rate, "pitch": pitch})
+        def __init__(self, text: str, voice: str, rate: str, pitch: str, **options):
+            calls.append({"text": text, "voice": voice, "rate": rate, "pitch": pitch, **options})
 
         async def stream(self):
             yield {"type": "audio", "data": payload}
@@ -148,6 +148,52 @@ def test_network_failure_does_not_cache_alternate_voice(tmp_path, monkeypatch):
     def fail(*args, **kwargs):
         raise ConnectionError("offline")
     monkeypatch.setitem(sys.modules, "edge_tts", SimpleNamespace(Communicate=fail))
+    with pytest.raises(RuntimeError, match="在线语音"):
+        tts.synthesize_narration(narration)
+    assert not narration.with_name("narration.mp3").exists()
+
+
+def test_windows_system_proxy_is_passed_explicitly(tmp_path, monkeypatch):
+    monkeypatch.delenv("BASKETBALL_TTS_PROXY", raising=False)
+    monkeypatch.setattr(tts, "getproxies", lambda: {"https": "http://127.0.0.1:7888"})
+    calls = _fake_edge_tts(monkeypatch)
+    tts.synthesize_narration(_write_narration(tmp_path))
+    assert calls[0]["proxy"] == "http://127.0.0.1:7888"
+    assert calls[0]["connect_timeout"] == 8
+    monkeypatch.setenv("BASKETBALL_TTS_PROXY", "direct")
+    assert tts._speech_proxy() is None
+    monkeypatch.setenv("BASKETBALL_TTS_PROXY", "127.0.0.1:9999")
+    assert tts._speech_proxy() == "http://127.0.0.1:9999"
+
+
+def test_transient_network_error_retries_without_caching_partial_audio(tmp_path, monkeypatch):
+    attempts = []
+    class Voice:
+        def __init__(self, *args, **kwargs):
+            attempts.append(args)
+        async def stream(self):
+            if len(attempts) == 1:
+                yield {"type": "audio", "data": b"partial"}
+                raise ConnectionError("transient")
+            yield {"type": "audio", "data": b"complete"}
+    monkeypatch.setitem(sys.modules, "edge_tts", SimpleNamespace(Communicate=Voice))
+    monkeypatch.setattr(tts, "_RETRY_DELAY", 0)
+    audio = tts.synthesize_narration(_write_narration(tmp_path))
+    assert audio.read_bytes() == b"complete"
+    assert len(attempts) == 2
+
+
+def test_stalled_synthesis_times_out_without_writing_cache(tmp_path, monkeypatch):
+    import asyncio
+    class Voice:
+        def __init__(self, *args, **kwargs): pass
+        async def stream(self):
+            await asyncio.sleep(10)
+            yield {"type": "audio", "data": b"late"}
+    monkeypatch.setitem(sys.modules, "edge_tts", SimpleNamespace(Communicate=Voice))
+    monkeypatch.setattr(tts, "_REQUEST_TIMEOUT", .01)
+    monkeypatch.setattr(tts, "_RETRY_DELAY", 0)
+    narration = _write_narration(tmp_path)
     with pytest.raises(RuntimeError, match="在线语音"):
         tts.synthesize_narration(narration)
     assert not narration.with_name("narration.mp3").exists()
