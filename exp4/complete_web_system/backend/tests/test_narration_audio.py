@@ -109,7 +109,12 @@ def test_synthesize_regenerates_when_narration_updated(tmp_path: Path, monkeypat
 
     future = narration.stat().st_mtime + 10
     os.utime(narration, (future, future))
-    _fake_edge_tts(monkeypatch, payload=b"new")
+    calls = _fake_edge_tts(monkeypatch, payload=b"new")
+    assert tts.synthesize_narration(narration).read_bytes() == b"old"
+    assert not calls  # Status/timestamp changes do not change spoken content.
+    changed = json.loads(narration.read_text(encoding="utf-8"))
+    changed["sections"][0]["text"] = "球员继续运球。"
+    narration.write_text(json.dumps(changed), encoding="utf-8")
     assert tts.synthesize_narration(narration).read_bytes() == b"new"
 
 

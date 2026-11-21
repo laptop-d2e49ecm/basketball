@@ -12,9 +12,9 @@ async function mockBackend(page: Page) {
     let result: unknown = null
     if (path === '/api/v1/tasks' && route.request().method() === 'POST') result = { task_id: task.task_id, status: 'pending', frame_step: 2 }
     else if (path === '/api/v1/tasks') result = [{ ...task, status: phase }]
-    else if (path === `/api/v1/tasks/${task.task_id}`) result = { ...task, status: phase, stage: phase === 'ready' ? 'ready' : 'detecting', progress: phase === 'ready' ? 1 : .4 }
+    else if (path === `/api/v1/tasks/${task.task_id}`) result = { ...task, status: phase === 'narrating' ? 'running' : phase, stage: phase === 'ready' ? 'ready' : phase === 'narrating' ? 'narrating' : 'detecting', progress: phase === 'ready' ? 1 : .4 }
     else if (path.endsWith('/events')) result = [event, { type: 'player_count_change', t_ms: 0, player_count: 8, text: '检测到 8 人' }, { type: 'player_count_change', t_ms: 8000, player_count: 10, text: '检测到 10 人' }]
-    else if (path.endsWith('/narration')) result = narration
+    else if (path.endsWith('/narration')) result = phase === 'narrating' ? { ...narration, status: 'running', text: '', sections: [] } : narration
     else if (path.endsWith('/preview/status')) result = { status: 'processing', converted: false, error: null }
     else if (path.endsWith('/detections')) result = []
     else if (path.endsWith('/agent/sessions')) result = []
@@ -23,8 +23,23 @@ async function mockBackend(page: Page) {
     else return route.fulfill({ status: 404, json: { code: 404, result: null, msg: '不存在' } })
     await route.fulfill({ status: 200, json: { code: 0, result, msg: 'ok' } })
   })
-  return { finish: () => { phase = 'ready' } }
+  return { finish: () => { phase = 'ready' }, narrate: () => { phase = 'narrating' } }
 }
+
+test('opens analysis before narration finishes and updates without reloading video', async ({ page }) => {
+  const backend = await mockBackend(page)
+  await page.goto('/analyzing/video-test')
+  backend.narrate()
+  await expect(page).toHaveURL(/\/tasks\/video-test/, { timeout: 7000 })
+  await expect(page.getByText('视频检测已完成，可以先看视频和事件。AI 解说与配音正在生成，完成后会自动更新。')).toBeVisible()
+  await expect(page.getByRole('button', { name: '关闭解说声音' })).toBeDisabled()
+  await page.locator('video').evaluate(el => { el.dataset.preserved = 'yes' })
+  backend.finish()
+  await expect(page.getByRole('region', { name: '整场 AI 解说' })).toContainText(narration.text, { timeout: 7000 })
+  await expect(page.getByText('视频检测已完成，可以先看视频和事件。AI 解说与配音正在生成，完成后会自动更新。')).toHaveCount(0)
+  await expect(page.locator('video')).toHaveAttribute('data-preserved', 'yes')
+  await expect(page.locator('.cv-voice-toggle')).toBeEnabled()
+})
 
 test('video upload, waiting screen, analysis and task chat share one workspace', async ({ page }) => {
   const backend = await mockBackend(page)
@@ -236,8 +251,20 @@ test('one continuous commentary track plays without seeks or rate changes across
   await page.goto('/tasks/video-test')
   const video = page.locator('.cv-video-stage video')
   await expect.poll(() => video.evaluate(el => (el as HTMLVideoElement).readyState)).toBeGreaterThan(1)
+  await page.evaluate(() => {
+    const audio = (window as Window & { testNarrationMedia: HTMLAudioElement[] }).testNarrationMedia[0]!
+    const originalPlay = audio.play.bind(audio)
+    let denied = false
+    audio.play = () => {
+      if (!denied) { denied = true; return Promise.reject(new DOMException('Blocked', 'NotAllowedError')) }
+      return originalPlay()
+    }
+  })
   await page.getByRole('button', { name: '播放', exact: true }).click()
-  expect(await video.evaluate(el => (el as HTMLVideoElement).muted)).toBe(true)
+  await expect(page.getByText('点击开启解说声音')).toBeVisible()
+  expect(await video.evaluate(el => (el as HTMLVideoElement).muted)).toBe(false)
+  await page.getByRole('button', { name: '重试解说声音' }).click()
+  await expect.poll(() => video.evaluate(el => (el as HTMLVideoElement).muted)).toBe(true)
   // The continuous track contains the initial silence; captions still follow cue timestamps.
   await page.waitForTimeout(700)
   expect((await state()).some(a => !a.paused && a.src.includes('timeline=1'))).toBe(true)

@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from app.tts import synthesize_narration
@@ -46,7 +47,8 @@ def synthesize_timeline(narration_path: Path) -> Path:
         ends = starts[1:] + [int(sections[-1].get("end_ms") or 0)]
         if starts[0] < 0 or any(end <= start for start, end in zip(starts, ends)):
             raise ValueError("解说时间范围不正确")
-        files = [synthesize_narration(narration_path, i) for i in range(len(sections))]
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="timeline-voice") as pool:
+            files = list(pool.map(lambda i: synthesize_narration(narration_path, i), range(len(sections))))
         digest = hashlib.sha256(b"timeline-pcm-v2")
         digest.update(json.dumps([starts, ends]).encode())
         for file in files:

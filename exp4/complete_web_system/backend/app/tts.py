@@ -92,8 +92,7 @@ def synthesize_narration(narration_path: Path, section: int | None = None) -> Pa
         version = "edge-uniform-segment-v4" if section is not None else "edge-uniform-full-v4"
         profile = json.dumps([version, voice, rate, "+0Hz", hashlib.sha256(text.encode("utf-8")).hexdigest()])
         if (audio_path.is_file() and profile_path.is_file()
-                and profile_path.read_text(encoding="utf-8") == profile
-                and audio_path.stat().st_mtime_ns >= narration_path.stat().st_mtime_ns):
+                and profile_path.read_text(encoding="utf-8") == profile):
             return audio_path
         if not text:
             raise ValueError("解说稿为空，无法合成语音")

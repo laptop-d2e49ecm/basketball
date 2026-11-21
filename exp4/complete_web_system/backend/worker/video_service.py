@@ -3,6 +3,7 @@ from __future__ import annotations
 import heapq
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
@@ -47,6 +48,13 @@ def analysis_frame_step(fps: float, requested: int, mode: str) -> int:
 
 
 def process_task(task: dict[str, Any], model: Any) -> None:
+    # Picture-based narration does not depend on detections. Keep its lifetime
+    # bounded to this task, including when detection fails.
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="task-narration") as pool:
+        _process_task(task, model, pool)
+
+
+def _process_task(task: dict[str, Any], model: Any, pool: ThreadPoolExecutor) -> None:
     task_id = task["id"]
     task_dir = settings.runs_dir / task_id
     task_dir.mkdir(parents=True, exist_ok=True)
@@ -68,6 +76,11 @@ def process_task(task: dict[str, Any], model: Any) -> None:
         frame_step = 1
         frames_total = None
     cap.release()
+    visual_future = None
+    if getattr(settings, "vision_caption_enabled", False) and fps > 0 and frame_total_raw > 0:
+        from worker.narration_service import generate_prepared_visual
+
+        visual_future = pool.submit(generate_prepared_visual, task_id, video_path)
     task_repo.update_task_metadata(
         task_id, frame_step=frame_step, analysis_started_at=datetime.now(UTC).isoformat(),
         expected_seconds=task_repo.expected_analysis_seconds(frames_total),
@@ -275,11 +288,14 @@ def process_task(task: dict[str, Any], model: Any) -> None:
     narration_started = perf_counter()
 
     # 事件文件写完后，Agent 读取同一 task_id 的全部事件并保存整场解说。
+    from worker.narration_service import run_task_narration, write_narration
+
+    write_narration(task_dir / "narration.json", {
+        "task_id": task_id, "status": "running", "text": "", "sections": [],
+    })
     task_repo.update_task(task_id, stage="narrating", progress=0.90,
                           notify={"type": "progress", "stage": "narrating", "progress": 0.90})
-    from worker.narration_service import run_task_narration
-
-    narration = run_task_narration(task_id, events_path)
+    narration = run_task_narration(task_id, events_path, visual_future=visual_future)
     task_repo.update_task_metadata(task_id, narration_status=narration["status"])
 
     narration_seconds = perf_counter() - narration_started

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from threading import Event
 import cv2
 import numpy as np
 import pytest
@@ -9,7 +10,8 @@ from app.api import tasks
 
 
 @pytest.mark.parametrize("mode,stride,expected", [("fast", 3, 10), ("detailed", 2, 15)])
-def test_pipeline_sampling_preserves_timestamps_and_reports_stage_timings(tmp_path, monkeypatch, mode, stride, expected):
+@pytest.mark.parametrize("vision_enabled", [False, True])
+def test_pipeline_sampling_preserves_timestamps_and_reports_stage_timings(tmp_path, monkeypatch, mode, stride, expected, vision_enabled):
     source = tmp_path / "source.mp4"
     writer = cv2.VideoWriter(str(source), cv2.VideoWriter_fourcc(*"mp4v"), 25, (64, 48))
     if not writer.isOpened(): pytest.skip("MP4 encoder unavailable")
@@ -17,16 +19,29 @@ def test_pipeline_sampling_preserves_timestamps_and_reports_stage_timings(tmp_pa
     writer.release()
     monkeypatch.setattr(video_service, "settings", SimpleNamespace(
         runs_dir=tmp_path, video_frame_step=2, inference_device="cpu", image_size=640,
-        action_recognition_enabled=False, commentary_backend="stub", commentary_batch_size=5))
+        action_recognition_enabled=False, commentary_backend="stub", commentary_batch_size=5,
+        vision_caption_enabled=vision_enabled))
     stages = []
     metadata = {}
     monkeypatch.setattr(video_service.task_repo, "update_task", lambda _, **values: stages.append(values))
     monkeypatch.setattr(video_service.task_repo, "update_task_metadata", lambda _, **values: metadata.update(values))
     monkeypatch.setattr(video_service.task_repo, "expected_analysis_seconds", lambda _: 1)
     monkeypatch.setattr(video_service.task_repo, "notify_task", lambda *args: None)
-    monkeypatch.setattr("worker.narration_service.run_task_narration", lambda *args: {"status": "ready"})
+    visual_started, detection_started = Event(), Event()
+    def visual(*args):
+        visual_started.set()
+        assert detection_started.wait(5), "visual generation must overlap detection"
+        return {"status": "ready"}
+    def narrate(*args, visual_future=None):
+        assert (visual_future is not None) == vision_enabled
+        return visual_future.result() if visual_future else {"status": "ready"}
+    monkeypatch.setattr("worker.visual_narration.generate_visual_narration", visual)
+    monkeypatch.setattr("worker.narration_service.run_task_narration", narrate)
     class Model:
         def track(self, **kwargs):
+            if vision_enabled:
+                assert visual_started.wait(5)
+                detection_started.set()
             assert kwargs["vid_stride"] == stride
             assert kwargs["imgsz"] == 640
             for _ in range(expected):

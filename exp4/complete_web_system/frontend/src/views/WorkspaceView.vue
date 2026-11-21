@@ -82,6 +82,7 @@ const selectedFile = ref<File | null>(null)
 const videoName = ref('')
 const analysisMode = ref<'fast' | 'detailed'>('fast')
 const videoElement = ref<HTMLVideoElement | null>(null)
+const videoNarration = ref<InstanceType<typeof VideoNarration> | null>(null)
 const videoPanel = ref<HTMLElement | null>(null)
 const nativeVideoFullscreen = ref(false)
 const expandedVideo = ref(false)
@@ -167,6 +168,7 @@ const stripItems = computed<StripItem[]>(() => {
 })
 const voiceSections = computed(() => narration.value?.status === 'ready' && !!narration.value.sections?.length)
 const voiceCues = computed(() => {
+  if (narration.value?.status !== 'ready') return []
   if (voiceSections.value) return narration.value!.sections
   if (narration.value?.text) return [{ start_ms: 0, text: narration.value.text }]
   return stripItems.value
@@ -284,9 +286,13 @@ async function pollTask(id: string, token: number): Promise<void> {
     const result = await getTask(id)
     if (generation !== token || currentTaskId.value !== id) return
     task.value = result
-    if (result.status === 'ready') { stopTimers(); await router.replace(`/tasks/${id}`) }
+    if (view.value === 'analyzing' && canViewResult(result)) { stopTimers(); await router.replace(`/tasks/${id}`) }
+    else if (result.status === 'ready') { window.clearInterval(taskTimer); taskTimer = 0 }
     else if (result.status === 'failed') { stopTimers(); pageError.value = result.error || '视频分析失败' }
   } catch (error) { if (generation === token) pageError.value = error instanceof Error ? error.message : '连接暂时中断' }
+}
+function canViewResult(result: TaskStatus): boolean {
+  return result.status === 'ready' || (result.status === 'running' && result.stage === 'narrating')
 }
 async function pollPreview(id: string, token: number): Promise<void> {
   try {
@@ -372,15 +378,15 @@ async function loadResult(id: string, token: number): Promise<void> {
     duration.value = Number(status.metadata.video_duration_seconds) || Math.max(
       0, (events.value.at(-1)?.t_ms ?? 0) / 1000, (narrationResult.sections?.at(-1)?.end_ms ?? 0) / 1000,
     )
-    if (status.status !== 'ready') { await router.replace(`/analyzing/${id}`); return }
+    if (!canViewResult(status)) { await router.replace(`/analyzing/${id}`); return }
     if (localVideoTaskId === id && localVideoUrl) videoSource.value = localVideoUrl
     else videoSource.value = ''
-    await reloadSessions(id, true)
-    if (generation !== token || currentTaskId.value !== id) return
+    void reloadSessions(id, true)
     if (route.query.chat === 'history') historyOpen.value = true
     void pollPreview(id, token)
     previewTimer = window.setInterval(() => { void pollPreview(id, token) }, 2500)
     if (['running', 'pending'].includes(narrationResult.status)) narrationTimer = window.setInterval(() => { void pollNarration(id, token) }, 2500)
+    if (status.status === 'running') taskTimer = window.setInterval(() => { void pollTask(id, token) }, 1800)
   } catch (error) { if (generation === token) pageError.value = error instanceof Error ? error.message : '无法加载分析结果' }
 }
 async function openRoute(): Promise<void> {
@@ -391,7 +397,7 @@ async function openRoute(): Promise<void> {
   stopTimers(); pageError.value = ''; task.value = null; events.value = []; narration.value = null
   matchAnswer.value = ''; matchQuestion.value = ''; retryBusy.value = false; chatBusy.value = false; chatError.value = ''; chatDraft.value = ''
   sessions.value = []; chatTurns.value = []; sessionId.value = ''; historyOpen.value = false; chatImages.value = []; selectingFrames.value = false; imageBusy.value = false
-  videoSource.value = ''; currentTime.value = 0; duration.value = 0; detections.value = []; frameWindow.value = -1
+  videoSource.value = ''; previewMessage.value = ''; currentTime.value = 0; duration.value = 0; detections.value = []; frameWindow.value = -1
   void reloadTasks()
   if (view.value === 'analyzing') {
     tipTimer = window.setInterval(() => { tipIndex.value = (tipIndex.value + 1) % basketballTips.length }, 6000)
@@ -433,6 +439,7 @@ function togglePlayback(): void {
   if (video.paused) {
     if (video.ended || atVideoEnd.value) { video.currentTime = 0; currentTime.value = 0 }
     useNormalPlayback()
+    videoNarration.value?.startFromGesture()
     void video.play().catch(() => { previewMessage.value = '视频暂时无法播放，请等待兼容预览完成' })
   }
   else video.pause()
@@ -640,12 +647,13 @@ onBeforeUnmount(() => { void leaveVideoExpanded(); document.removeEventListener(
     <main v-else class="cv-console">
       <nav class="cv-console-top" aria-label="工作台导航"><RouterLink to="/" class="cv-brand"><span class="cv-ball">◉</span><b>COURTVISION</b></RouterLink><RouterLink to="/" class="cv-btn cv-outline cv-return-home">← 返回主页</RouterLink><div class="cv-console-actions"><button class="cv-btn cv-outline" @click="router.push('/recent')">最近任务 <span class="cv-count">{{ tasks.length }}</span></button><button class="cv-btn cv-outline" :disabled="!narration?.text" @click="videoElement?.pause(); audioError = ''; exporting = true; exportDialog?.showModal()">导出解说</button><button class="cv-btn cv-primary" @click="chooseVideo">重新分析</button></div></nav>
       <div class="cv-console-grid"><section class="cv-frame-panel cv-panel"><header>画面帧 <span>{{ selectingFrames ? '点击画面选择' : '随播放滚动' }}</span></header><p v-if="selectingFrames" class="cv-frame-select-hint">可选多张，选好后点击聊天框的发送。</p><div ref="frameElement" class="cv-frame-list"><button v-for="(frame, index) in keyFrames" :key="`${frame.t_ms}-${index}`" class="cv-frame" :class="{ active: index === activeFrameIndex, selectable: selectingFrames, selected: chatImages.some(image => image.frame_ms === Math.floor(frame.t_ms / 1000) * 1000) }" :disabled="selectingFrames && (chatBusy || imageBusy)" :aria-label="selectingFrames ? `选择 ${clock(frame.t_ms / 1000)} 画面` : `跳转到 ${clock(frame.t_ms / 1000)}`" @click="selectingFrames ? useFrameInChat(frame.t_ms) : jumpTo(frame.t_ms)"><img :src="frameUrl(frame.t_ms)" alt="事件附近视频帧"><span>{{ clock(frame.t_ms / 1000) }}</span></button><p v-if="!keyFrames.length" class="cv-panel-empty">暂无关键帧</p></div></section>
-        <section ref="videoPanel" class="cv-video-panel cv-panel" :class="{ 'cv-video-expanded': expandedVideo }"><div class="cv-video-stage"><video ref="videoElement" :src="videoSource || undefined" playsinline preload="metadata" @loadedmetadata="duration = videoElement?.duration || 0; useNormalPlayback(); drawBoxes()" @timeupdate="onVideoTime" @play="playing = true; useNormalPlayback()" @pause="playing = false" @error="onVideoError"></video><canvas ref="overlayCanvas" class="cv-overlay"></canvas><button class="cv-box-toggle" :aria-pressed="showBoxes" @click="toggleBoxes">检测框 <span :class="{ on: showBoxes }"></span></button><div class="cv-live"><i></i> 分析结果</div><div v-if="currentCaption" class="cv-subtitle"><b>{{ clock(currentTime) }}</b><span>{{ currentCaption }}</span></div><div v-if="previewMessage" class="cv-preview-message">{{ previewMessage }}</div></div><div class="cv-video-controls"><button class="cv-play" :aria-label="playing ? '暂停' : atVideoEnd ? '重播' : '播放'" @click="togglePlayback">{{ playing ? 'Ⅱ' : atVideoEnd ? '↻' : '▶' }}</button><VideoNarration :key="currentTaskId" :video="videoElement" :cues="voiceCues" :segmented="voiceSections" :url="audioUrl" :revision="narration?.created_at || ''" /><span>{{ clock(currentTime) }} / {{ clock(duration) }}</span><div class="cv-seek" role="slider" tabindex="0" aria-label="视频进度" :aria-valuenow="Math.round(currentTime)" :aria-valuemax="Math.round(duration)" @click="seek" @keydown.left.prevent="jumpTo((currentTime - 5) * 1000)" @keydown.right.prevent="jumpTo((currentTime + 5) * 1000)"><div class="cv-seek-fill" :style="{ width: pinPosition(currentTime * 1000) }"></div><button v-for="(item, index) in stripItems" :key="`${item.start_ms}-${index}`" class="cv-seek-node" :class="{ active: item.start_ms === stripItems[activeStripIndex]?.start_ms }" :style="{ left: pinPosition(item.start_ms) }" :title="clock(item.start_ms / 1000)" @click.stop="jumpTo(item.start_ms)"></button></div><span>{{ countNow === null ? '—' : `${countNow} 人` }}</span><button type="button" class="cv-video-enlarge" :disabled="fullscreenBusy" :aria-label="videoIsEnlarged ? '退出放大' : '放大观看'" :aria-pressed="videoIsEnlarged" :title="videoIsEnlarged ? '退出放大（Esc）' : '放大观看'" @click="toggleVideoSize">{{ videoIsEnlarged ? '退出放大' : '放大观看' }}</button></div></section>
+        <section ref="videoPanel" class="cv-video-panel cv-panel" :class="{ 'cv-video-expanded': expandedVideo }"><div class="cv-video-stage"><video ref="videoElement" :src="videoSource || undefined" playsinline preload="metadata" @loadedmetadata="duration = videoElement?.duration || 0; useNormalPlayback(); drawBoxes()" @timeupdate="onVideoTime" @play="playing = true; useNormalPlayback()" @pause="playing = false" @error="onVideoError"></video><canvas ref="overlayCanvas" class="cv-overlay"></canvas><button class="cv-box-toggle" :aria-pressed="showBoxes" @click="toggleBoxes">检测框 <span :class="{ on: showBoxes }"></span></button><div class="cv-live"><i></i> 分析结果</div><div v-if="currentCaption" class="cv-subtitle"><b>{{ clock(currentTime) }}</b><span>{{ currentCaption }}</span></div><div v-if="previewMessage" class="cv-preview-message">{{ previewMessage }}</div></div><div class="cv-video-controls"><button class="cv-play" :aria-label="playing ? '暂停' : atVideoEnd ? '重播' : '播放'" @click="togglePlayback">{{ playing ? 'Ⅱ' : atVideoEnd ? '↻' : '▶' }}</button><VideoNarration ref="videoNarration" :key="currentTaskId" :video="videoElement" :cues="voiceCues" :segmented="voiceSections" :url="audioUrl" :revision="narration?.created_at || ''" /><span>{{ clock(currentTime) }} / {{ clock(duration) }}</span><div class="cv-seek" role="slider" tabindex="0" aria-label="视频进度" :aria-valuenow="Math.round(currentTime)" :aria-valuemax="Math.round(duration)" @click="seek" @keydown.left.prevent="jumpTo((currentTime - 5) * 1000)" @keydown.right.prevent="jumpTo((currentTime + 5) * 1000)"><div class="cv-seek-fill" :style="{ width: pinPosition(currentTime * 1000) }"></div><button v-for="(item, index) in stripItems" :key="`${item.start_ms}-${index}`" class="cv-seek-node" :class="{ active: item.start_ms === stripItems[activeStripIndex]?.start_ms }" :style="{ left: pinPosition(item.start_ms) }" :title="clock(item.start_ms / 1000)" @click.stop="jumpTo(item.start_ms)"></button></div><span>{{ countNow === null ? '—' : `${countNow} 人` }}</span><button type="button" class="cv-video-enlarge" :disabled="fullscreenBusy" :aria-label="videoIsEnlarged ? '退出放大' : '放大观看'" :aria-pressed="videoIsEnlarged" :title="videoIsEnlarged ? '退出放大（Esc）' : '放大观看'" @click="toggleVideoSize">{{ videoIsEnlarged ? '退出放大' : '放大观看' }}</button></div></section>
         <section class="cv-chat-panel cv-panel"><header>AI 对话 <button class="cv-history-trigger" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen">对话历史</button><span>当前视频</span></header><div v-if="historyOpen" class="cv-history"><div class="cv-history-head"><b>对话历史</b><button @click="historyOpen = false">×</button></div><button class="cv-btn cv-primary" @click="newChat">＋ 新建对话</button><button v-for="item in sessions" :key="item.session_id" class="cv-history-item" @click="loadSession(item.session_id)"><b>{{ item.title }}</b><small>{{ timeLabel(item.updated_at) }} · {{ item.message_count }} 条消息</small></button><p v-if="!sessions.length">暂无对话记录</p></div><div v-else class="cv-chat-content"><div class="cv-messages"><div v-if="!chatTurns.length" class="cv-chat-welcome"><span>✦</span><b>和 AI 聊聊这场球</b><p>提问会关联当前视频的真实事件，回答不会直接把模型预测当成进球事实。</p></div><div v-for="(turn, index) in chatTurns" :key="index" class="cv-message" :class="turn.role"><div v-if="turn.images?.length || turn.image" class="cv-chat-sent-images"><img v-for="(image, imageIndex) in turn.images || (turn.image ? [turn.image] : [])" :key="image.id" class="cv-chat-sent-image" :src="image.url" :alt="`问题附图 ${imageIndex + 1}`"></div><p>{{ turn.content }}</p><AgentToolCalls v-if="turn.tool_calls?.length" :calls="turn.tool_calls" /></div></div><div class="cv-quick"><button @click="askQuick('总结这段比赛的关键事件')">总结比赛</button><button @click="askQuick('人数变化最大的时段是什么时候？')">人数变化</button><button @click="askQuick('有哪些疑似三分出手？')">三分出手</button></div><ChatImageInput ref="chatImageInput" v-model="chatImages" :task-id="currentTaskId" :disabled="chatBusy" @busy="imageBusy = $event" /><p v-if="selectingFrames" class="cv-selecting-hint">请在左侧选择画面（{{ chatImages.length }}/6），点击“＋”可结束选图。</p><form class="cv-chat-compose" @submit.prevent="sendChat()"><button type="button" class="cv-chat-add-frame" aria-label="添加画面帧" :aria-pressed="selectingFrames" :disabled="chatBusy || imageBusy" @click="selectingFrames = !selectingFrames">＋</button><input v-model="chatDraft" maxlength="500" placeholder="就这场比赛继续提问…" aria-label="向 AI 提问"><button :disabled="chatBusy || imageBusy || (!chatDraft.trim() && !chatImages.length)" aria-label="发送">↑</button></form><small v-if="chatError" class="cv-chat-error">{{ chatError }}</small></div></section>
       <section class="cv-commentary cv-panel" aria-label="赛事解说"><div class="cv-ruler" @click="seek"><div class="cv-ruler-fill" :style="{ width: pinPosition(currentTime * 1000) }"></div><span v-for="(item, index) in stripItems" :key="index" class="cv-ruler-node" :class="{ active: item.start_ms === stripItems[activeStripIndex]?.start_ms }" :style="{ left: pinPosition(item.start_ms) }" @click.stop="jumpTo(item.start_ms)"></span></div><div class="cv-ruler-labels"><span v-for="tick in [0, .25, .5, .75, 1]" :key="tick">{{ clock(duration * tick) }}</span></div><div ref="stripElement" class="cv-strip"><button v-for="(item, index) in stripItems" :key="`${item.start_ms}-${index}`" class="cv-strip-card" :class="{ active: index === activeStripIndex }" @click="jumpTo(item.start_ms)"><time>{{ clock(item.start_ms / 1000) }}</time><span>{{ item.text }}</span><small>{{ item.label }}</small></button><p v-if="!stripItems.length">暂无解说，等待视频分析结果。</p></div></section></div>
       <section class="cv-panel cv-match-report" aria-label="整场 AI 解说">
         <header>✦ 整场 AI 解说 <div class="cv-report-tools"><small role="status">{{ copyNotice }}</small><button class="cv-btn cv-outline" :disabled="!narration?.text" @click="copyNarration">复制全文</button><span>{{ narrationStatus }}</span></div></header>
         <div class="cv-report-body">
+          <p v-if="task?.status === 'running' && task.stage === 'narrating'" role="status">视频检测已完成，可以先看视频和事件。AI 解说与配音正在生成，完成后会自动更新。</p>
           <p class="cv-report-text">{{ narration?.text || narration?.error || ({ running: '正在根据比赛事件生成解说…', pending: '解说等待生成。', empty: '当前任务没有可供解说的事件。' } as Record<string,string>)[narration?.status ?? ''] || '整场解说尚未生成。' }}</p>
           <form class="cv-match-ask" @submit.prevent="askAboutMatch">
             <button type="button" class="cv-btn cv-outline" :disabled="!task || retryBusy || narration?.status === 'running' || narration?.status === 'pending'" @click="regenerateNarration">重新生成解说</button>

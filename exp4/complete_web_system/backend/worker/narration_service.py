@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from concurrent.futures import Future
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -176,7 +177,47 @@ def write_narration(path: Path, result: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
-def run_task_narration(task_id: str, events_path: Path) -> dict[str, Any]:
+def prepare_narration_audio(narration_path: Path, result: dict[str, Any]) -> list[Path]:
+    task_id = result.get("task_id", narration_path.parent.name)
+    cached_audio: list[Path] = []
+    if result.get("status") == "ready" and result.get("sections") and (narration_path.parent / "source.mp4").is_file():
+        # Ready means the short passages can start immediately, rather than
+        # spending their entire picture interval waiting for online speech.
+        from concurrent.futures import ThreadPoolExecutor
+        from app.tts import synthesize_narration
+
+        write_narration(narration_path, {**result, "status": "running"})
+
+        def warm(section: int) -> Path | None:
+            try:
+                return synthesize_narration(narration_path, section)
+            except Exception:
+                logger.warning("分段语音准备失败，保留解说稿供播放时重试：%s/%s", task_id, section)
+                return None
+
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="narration-audio") as pool:
+            cached_audio = [path for path in pool.map(warm, range(len(result["sections"]))) if path]
+        if len(cached_audio) == len(result["sections"]):
+            try:
+                from app.narration_timeline import synthesize_timeline
+
+                cached_audio.append(synthesize_timeline(narration_path))
+            except (RuntimeError, ValueError):
+                logger.warning("连续音轨准备失败，播放时可重试：%s", task_id)
+    return cached_audio
+
+
+def generate_prepared_visual(task_id: str, source: Path) -> dict[str, Any]:
+    from worker.visual_narration import generate_visual_narration
+
+    result = generate_visual_narration(task_id, source, [])
+    prepare_narration_audio(source.parent / "narration.json", result)
+    return result
+
+
+def run_task_narration(
+    task_id: str, events_path: Path, *, visual_future: Future | None = None,
+) -> dict[str, Any]:
     """解说失败时仍保留视频分析结果，并将可重试状态写入文件。"""
     context: dict[str, Any] = {}
     try:
@@ -192,7 +233,21 @@ def run_task_narration(task_id: str, events_path: Path) -> dict[str, Any]:
         from app.core.config import settings
 
         source = events_path.parent / "source.mp4"
-        if settings.vision_caption_enabled and source.is_file():
+        if visual_future is not None:
+            try:
+                result = visual_future.result()
+                # Event counts are attached only after the detector has finished.
+                events = _events(events_path)
+                result["event_count"] = len(events)
+                for section in result["sections"]:
+                    section["event_count"] = sum(
+                        section["start_ms"] <= int(event.get("t_ms", 0)) < section["end_ms"]
+                        for event in events
+                    )
+            except Exception:
+                logger.exception("并行画面解说失败，回退带事件依据的解说：%s", task_id)
+                result = None
+        elif settings.vision_caption_enabled and source.is_file():
             try:
                 from worker.visual_narration import generate_visual_narration
 
@@ -220,31 +275,7 @@ def run_task_narration(task_id: str, events_path: Path) -> dict[str, Any]:
             "error": error,
         }
     narration_path = events_path.parent / "narration.json"
-    cached_audio: list[Path] = []
-    if result.get("source") == "vision" and result.get("sections"):
-        # Ready means the short passages can start immediately, rather than
-        # spending their entire picture interval waiting for online speech.
-        from concurrent.futures import ThreadPoolExecutor
-        from app.tts import synthesize_narration
-
-        write_narration(narration_path, {**result, "status": "running"})
-
-        def warm(section: int) -> Path | None:
-            try:
-                return synthesize_narration(narration_path, section)
-            except Exception:
-                logger.warning("分段语音准备失败，保留解说稿供播放时重试：%s/%s", task_id, section)
-                return None
-
-        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="narration-audio") as pool:
-            cached_audio = [path for path in pool.map(warm, range(len(result["sections"]))) if path]
-        if len(cached_audio) == len(result["sections"]):
-            try:
-                from app.narration_timeline import synthesize_timeline
-
-                cached_audio.append(synthesize_timeline(narration_path))
-            except (RuntimeError, ValueError):
-                logger.warning("连续音轨准备失败，播放时可重试：%s", task_id)
+    cached_audio = prepare_narration_audio(narration_path, result)
     write_narration(narration_path, result)
     for audio in cached_audio:
         audio.touch()  # Cache must be newer than the final ready JSON.
